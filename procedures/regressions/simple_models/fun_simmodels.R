@@ -105,23 +105,29 @@ simmodels<-function(sformula,
   
   if(clustered==TRUE){
     stargazer::stargazer(reg_ctt, reg_t_ctt, reg_pboc, reg_t_pboc, title=tittle_table,
-              align=TRUE, column.labels=c("CTT", "PBOC"), column.separate=c(2,2),
-              column.sep.width="-20pt", digits=4,
-              notes.label="", header=FALSE,
-              omit        = "EARLIEST_FILING_YEAR",
-              omit.labels = "Time fixed effects",
-              omit.yes.no = c("Yes","No"),
-              dep.var.labels=" ",
-              dep.var.labels.include=TRUE,
-              dep.var.caption="Co-invention",
-              se=list(reg_ctt_c_s,reg_t_ctt_c_s,reg_pboc_c_s,reg_t_pboc_c_s),
-              covariate.labels=labels_cov,
-              omit.stat=c("ser","f"), no.space=TRUE)
+                         type = "latex", 
+                         align=TRUE, 
+                         column.labels=c("CTT", "PBOC"), 
+                         column.separate=c(2,2),
+                         column.sep.width="-20pt", 
+                         digits=4,
+                         notes.label="", 
+                         header=FALSE,
+                         omit="EARLIEST_FILING_YEAR",
+                         omit.labels = "Time fixed effects",
+                         omit.yes.no = c("Yes","No"),
+                         dep.var.labels=" ",
+                         dep.var.labels.include=TRUE,
+                         dep.var.caption="Co-invention",
+                         se=list(reg_ctt_c_s,reg_t_ctt_c_s,reg_pboc_c_s,reg_t_pboc_c_s),
+                         covariate.labels=labels_cov,
+                         omit.stat=c("ser","f"), no.space=TRUE)
     
     return(list(reg_t_ctt_c, reg_t_pboc_c))
   }
   else{
     stargazer::stargazer(reg_ctt, reg_t_ctt, reg_pboc, reg_t_pboc, title=tittle_table,
+                         type = "latex",
               align=TRUE, column.labels=c("CTT", "PBOC"), column.separate=c(2,2),
               column.sep.width="-20pt", digits=4,
               notes.label="", header=FALSE,
