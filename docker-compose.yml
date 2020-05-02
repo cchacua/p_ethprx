@@ -1,0 +1,11 @@
+version: '3'
+
+services:
+  rstudio:
+    build: ./docker_images/rstudio
+    ports:
+      - 8788:8787
+    environment:
+      PASSWORD: rsession
+    volumes:
+      - ./:/home/rstudio/p_ethprx

@@ -13,7 +13,9 @@ labels<-c("Ethnic proximity",
               "Institutional proximity",
               "Technological proximity")
 # Logit with clustered errors, only for the small sample
-logitshor<-simmodels(sformula=formula, labels_cov=labels, includenas=FALSE, logit=TRUE, clustered=TRUE, fpath="../input/reg")
+logitshor<-simmodels(sformula=formula, labels_cov=labels, includenas=FALSE, logit=TRUE, clustered=TRUE, fpath="../input/reg_uniqueid", onlyt = TRUE)
+logitshor<-simmodels(sformula=formula, labels_cov=labels, includenas=FALSE, logit=TRUE, clustered=TRUE, fpath="../input/reg", onlyt = TRUE)
 
 # LPM with clustered errors, only for the small sample
-lpmshort<-simmodels(sformula=formula, labels_cov=labels, includenas=FALSE, logit=FALSE, clustered=TRUE, fpath="../input/reg")
+lpmshort<-simmodels(sformula=formula, labels_cov=labels, includenas=FALSE, logit=FALSE, clustered=TRUE, fpath="../input/reg_uniqueid", onlyt = TRUE)
+lpmshort<-simmodels(sformula=formula, labels_cov=labels, includenas=FALSE, logit=FALSE, clustered=TRUE, fpath="../input/reg", onlyt = TRUE)

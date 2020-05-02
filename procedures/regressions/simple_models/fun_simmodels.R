@@ -8,6 +8,7 @@
 #'@param logit Logical. TRUE if Logit model, FALSE if LPM. Default value is FALSE.
 #'@param clustered Logical. TRUE if clustered standard errors. Default value is TRUE.
 #'@param fpath String. Path to the folder that contains the four databases.
+#'@param onlyt Logical. If TRUE, only the time-fixed effects models will be estimated. As a consequence, the table will only contain two models.
 #'@return It prints the table to export to latex and it returns a list with the two fixed effects estimated models (a model per each of the CTT and PBOC fields).
 #'@examples
 #' 
@@ -34,7 +35,8 @@ simmodels<-function(sformula,
                     includenas=TRUE, 
                     logit=FALSE, 
                     clustered=TRUE, 
-                    fpath="../input/reg"){
+                    fpath="../input/reg",
+                    onlyt=FALSE){
   
   flist<-list.files(path=fpath, full.names=TRUE)
   if(includenas==TRUE){
@@ -57,22 +59,32 @@ simmodels<-function(sformula,
   
   if(logit==TRUE){
     tittle_table<-"Logit Models, 1980-2012"
-    reg_ctt<-glm(sformula, family=binomial(link='logit'), data = database_ctt)
-    reg_pboc<-glm(sformula, family=binomial(link='logit'), data = database_pboc)
+    if(onlyt==FALSE){
+      reg_ctt<-glm(sformula, family=binomial(link='logit'), data = database_ctt)
+      reg_pboc<-glm(sformula, family=binomial(link='logit'), data = database_pboc)
+    }
     reg_t_ctt<-glm(sformula_t, family=binomial(link='logit'), data = database_ctt)
     reg_t_pboc<-glm(sformula_t, family=binomial(link='logit'), data = database_pboc)
     
+    if(onlyt==FALSE){
     print(paste("Pseudo-R2", round(logit_pseudor2(reg_ctt),4), 
                 round(logit_pseudor2(reg_t_ctt),4), round(logit_pseudor2(reg_pboc),4),
                 paste0(round(logit_pseudor2(reg_t_pboc),4), " \\"), sep = " & "))
+    }
+    else{
+      print(paste("Pseudo-R2", round(logit_pseudor2(reg_t_ctt),4),
+                  paste0(round(logit_pseudor2(reg_t_pboc),4), " \\"), sep = " & "))
+    }
+    
     if(clustered==TRUE){
+      if(onlyt==FALSE){
       reg_ctt_c<-miceadds::glm.cluster(data = database_ctt, sformula, cluster = "finalID", family=binomial(link='logit'))
       reg_pboc_c<-miceadds::glm.cluster(data = database_pboc, sformula, cluster = "finalID", family=binomial(link='logit'))
-      reg_t_ctt_c<-miceadds::glm.cluster(data = database_ctt, sformula_t, cluster = "finalID", family=binomial(link='logit'))
-      reg_t_pboc_c<-miceadds::glm.cluster(data = database_pboc, sformula_t, cluster = "finalID", family=binomial(link='logit'))
-      
       reg_ctt_c_s<-sqrt(diag(as.matrix(reg_ctt_c$vcov)))
       reg_pboc_c_s<-sqrt(diag(as.matrix(reg_pboc_c$vcov)))
+      }
+      reg_t_ctt_c<-miceadds::glm.cluster(data = database_ctt, sformula_t, cluster = "finalID", family=binomial(link='logit'))
+      reg_t_pboc_c<-miceadds::glm.cluster(data = database_pboc, sformula_t, cluster = "finalID", family=binomial(link='logit'))
       reg_t_ctt_c_s<-sqrt(diag(as.matrix(reg_t_ctt_c$vcov)))
       reg_t_pboc_c_s<-sqrt(diag(as.matrix(reg_t_pboc_c$vcov)))
       
@@ -83,27 +95,31 @@ simmodels<-function(sformula,
     tittle_table<-"Linear Probability Models, 1980-2012"
     
     if(clustered==TRUE){
+      if(onlyt==FALSE){
       reg_ctt_c<-miceadds::lm.cluster(data = database_ctt, sformula, cluster = "finalID")
       reg_pboc_c<-miceadds::lm.cluster(data = database_pboc, sformula, cluster = "finalID")
-      reg_t_ctt_c<-miceadds::lm.cluster(data = database_ctt, sformula_t, cluster = "finalID")
-      reg_t_pboc_c<-miceadds::lm.cluster(data = database_pboc, sformula_t, cluster = "finalID")
-      
       reg_ctt_c_s<-sqrt(diag(as.matrix(reg_ctt_c$vcov)))
       reg_pboc_c_s<-sqrt(diag(as.matrix(reg_pboc_c$vcov)))
+      }
+      reg_t_ctt_c<-miceadds::lm.cluster(data = database_ctt, sformula_t, cluster = "finalID")
+      reg_t_pboc_c<-miceadds::lm.cluster(data = database_pboc, sformula_t, cluster = "finalID")
       reg_t_ctt_c_s<-sqrt(diag(as.matrix(reg_t_ctt_c$vcov)))
       reg_t_pboc_c_s<-sqrt(diag(as.matrix(reg_t_pboc_c$vcov)))
       
       #rm(reg_ctt_c,reg_pboc_c,reg_t_ctt_c,reg_t_pboc_c)
     }
     
+    if(onlyt==FALSE){
     reg_ctt<-lm(formula=sformula, data = database_ctt)
     reg_pboc<-lm(formula=sformula, data = database_pboc)
+    }
     reg_t_ctt<-lm(sformula_t, data = database_ctt)
     reg_t_pboc<-lm(sformula_t, data = database_pboc)
     
   }
   
   if(clustered==TRUE){
+    if(onlyt==FALSE){
     stargazer::stargazer(reg_ctt, reg_t_ctt, reg_pboc, reg_t_pboc, title=tittle_table,
                          type = "latex", 
                          align=TRUE, 
@@ -122,10 +138,32 @@ simmodels<-function(sformula,
                          se=list(reg_ctt_c_s,reg_t_ctt_c_s,reg_pboc_c_s,reg_t_pboc_c_s),
                          covariate.labels=labels_cov,
                          omit.stat=c("ser","f"), no.space=TRUE)
+    }
+    else{
+      stargazer::stargazer(reg_t_ctt, reg_t_pboc, title=tittle_table,
+                           type = "latex", 
+                           align=TRUE, 
+                           column.labels=c("CTT", "PBOC"), 
+                           column.separate=c(1,1),
+                           column.sep.width="-20pt", 
+                           digits=4,
+                           notes.label="", 
+                           header=FALSE,
+                           omit="EARLIEST_FILING_YEAR",
+                           omit.labels = "Time fixed effects",
+                           omit.yes.no = c("Yes","No"),
+                           dep.var.labels=" ",
+                           dep.var.labels.include=TRUE,
+                           dep.var.caption="Co-invention",
+                           se=list(reg_t_ctt_c_s,reg_t_pboc_c_s),
+                           covariate.labels=labels_cov,
+                           omit.stat=c("ser","f"), no.space=TRUE)
+    }
     
     return(list(reg_t_ctt_c, reg_t_pboc_c))
   }
   else{
+    if(onlyt==FALSE){
     stargazer::stargazer(reg_ctt, reg_t_ctt, reg_pboc, reg_t_pboc, title=tittle_table,
                          type = "latex",
               align=TRUE, column.labels=c("CTT", "PBOC"), column.separate=c(2,2),
@@ -139,7 +177,22 @@ simmodels<-function(sformula,
               dep.var.caption="Co-invention",
               covariate.labels=labels_cov,
               omit.stat=c("ser","f"), no.space=TRUE)
-    
+    }
+    else{
+      stargazer::stargazer(reg_t_ctt, reg_t_pboc, title=tittle_table,
+                           type = "latex",
+                           align=TRUE, column.labels=c("CTT", "PBOC"), column.separate=c(1,1),
+                           column.sep.width="-20pt", digits=4,
+                           notes.label="", header=FALSE,
+                           omit        = "EARLIEST_FILING_YEAR",
+                           omit.labels = "Time fixed effects",
+                           omit.yes.no = c("Yes","No"),
+                           dep.var.labels=" ",
+                           dep.var.labels.include=TRUE,
+                           dep.var.caption="Co-invention",
+                           covariate.labels=labels_cov,
+                           omit.stat=c("ser","f"), no.space=TRUE)
+    }
     return(list(reg_t_ctt, reg_t_pboc))
   }
   

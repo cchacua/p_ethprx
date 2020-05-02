@@ -1,0 +1,44 @@
+###############################################################################
+##                          ORDER OF THE PROCEDURES                          ##
+###############################################################################
+
+Create and load on the MySQL server patstat2018b, riccaboni2017 and oecd_cit201907, and then execute:
+- get_applnid
+
+
+###############################################################################
+-- Create network with everything in Neo4J
+Inventor_ID -Collaboration- Inventor_ID
+
+Collaboration: APPLN_ID, priorityyear, field
+
+- select only clases 
+- get_family to get priority year
+-- Table only ids that belong to clases: applnid, priorityyear, myfield
+-- Add to the nodes:
+
+- collapse coordinates by family/year and inventor id
+-- table rowidt09, inventorid, year
+
+- Get only US patents - only for network
+-- table with applnids
+
+###############################################################################
+
+
+
+###############################################################################
+# get_country
+###############################################################################
+
+
+
+###############################################################################
+# nationality_classifier
+###############################################################################
+
+
+###############################################################################
+# descriptives_riccaboni
+###############################################################################
+
