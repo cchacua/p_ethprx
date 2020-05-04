@@ -9,3 +9,5 @@ services:
       PASSWORD: rsession
     volumes:
       - ./:/home/rstudio/p_ethprx
+      - ../input:/home/rstudio/input
+      - ../output:/home/rstudio/output

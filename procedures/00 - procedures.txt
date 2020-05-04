@@ -5,6 +5,10 @@
 Create and load on the MySQL server patstat2018b, riccaboni2017 and oecd_cit201907, and then execute:
 - get_applnid
 
+I need to modify's Riccaboni's schema:
+- table with unique addresses 
+- unique id info 
+- t08 will only be a linkage table
 
 ###############################################################################
 -- Create network with everything in Neo4J

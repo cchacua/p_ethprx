@@ -1,6 +1,7 @@
 library(ggplot2)
 library(ggsci)
 library(rms)
+library(tikzDevice)
 # This function only computes models with time fixed effects
 
 predictprob_plot<-function(sformula, 
