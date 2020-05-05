@@ -188,8 +188,89 @@ Rows matched: 1248921  Changed: 1248921  Warnings: 0
 SELECT COUNT(DISTINCT pat_id), inv_all_us FROM pethprx.t01_samples GROUP BY inv_all_us;
 SELECT * FROM pethprx.t01_samples WHERE inv_par_us=1 LIMIT 0,10;
 
+
 ---------------------------------------------------------------------------------------------------
--- Main table for sample at the inventor level
+-- Info on nationalities
+---------------------------------------------------------------------------------------------------
+
+/*
+-- Check file (delete duplicates and organize as in nationality_classifier/nationality_classifier_02.R
+-- Check code and save final table 
+
+DROP TABLE IF EXISTS christian.id_nat;
+CREATE TABLE IF NOT EXISTS christian.id_nat
+(
+nrow varchar(6),
+finalID varchar(15),
+nation varchar(50),
+prob varchar(10),
+cname VARCHAR(500),
+name VARCHAR(500)
+)
+ENGINE=MyISAM
+CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+
+
+LOAD DATA LOCAL INFILE '/media/christian/Server/Github/m2-migrations/data/nationality/nationality_all_names_only.csv' INTO TABLE christian.id_nat
+FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"'  ESCAPED BY ''
+lines terminated by '\n'
+IGNORE 1 LINES ;
+SHOW WARNINGS;
+
+SHOW INDEX FROM christian.id_nat;
+ALTER TABLE christian.id_nat ADD INDEX(finalID);
+*/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+---------------------------------------------------------------------------------------------------
+-- List of directed links at the patent level
+---------------------------------------------------------------------------------------------------
+/*
+-- Only for the patents
+*/
+
+DROP TABLE IF EXISTS riccaboni.edges_dir;
+CREATE TABLE riccaboni.edges_dir AS
+SELECT DISTINCT a.finalID, b.finalID AS finalID_, a.pat
+      FROM riccaboni.t_id_pat a
+      INNER JOIN riccaboni.t_id_pat b
+      ON a.pat=b.pat
+      WHERE a.finalID!=b.finalID;
+/*
+WHERE a.ID!=b.ID IS TO AVOID LINKS TO THEMSELVES
+Query OK, 10632746 rows affected (5 min 48,28 sec)
+Records: 10632746  Duplicates: 0  Warnings: 0
+
+*/
+
+SHOW INDEX FROM riccaboni.edges_dir;                                     
+ALTER TABLE riccaboni.edges_dir ADD INDEX(pat);
+
+SELECT * FROM riccaboni.edges_dir LIMIT 0,30;
+
+
+
+-- Main table for the link inventor patent or year
+-- At the level of final ID
+-- One address per link
+-
+
+-- inv_fid->t08 to get pat_id ->t01_sample-to get pat_id and years (on both conditions) -> with that patent list: comparisons
+-- Counterfactual for everysingle node no matter if they are ethnic?
 ---------------------------------------------------------------------------------------------------
 
 
