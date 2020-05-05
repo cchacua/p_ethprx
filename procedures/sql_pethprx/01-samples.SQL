@@ -52,7 +52,9 @@ SELECT * FROM pethprx.t20_addr_us LIMIT 0,10;
 DROP TABLE IF EXISTS pethprx.pointsinus;
 
 ---------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 -- Main table for sample at the patent level
+---------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------
 /*
 -- ATTENTION: 
@@ -88,6 +90,9 @@ field CHAR(1),
 EARLIEST_FILING_YEAR INT(4) UNSIGNED,
 inv_par_us BOOLEAN,
 inv_all_us BOOLEAN);
+ALTER TABLE pethprx.t01_samples ADD INDEX(pat_id);
+ALTER TABLE pethprx.t01_samples ADD INDEX(APPLN_ID);
+ALTER TABLE pethprx.t01_samples ADD INDEX(EARLIEST_FILING_YEAR);
 
 --------------------------
 -- APPLNID and EARLIEST_FILING_YEAR
@@ -188,79 +193,189 @@ Rows matched: 1248921  Changed: 1248921  Warnings: 0
 SELECT COUNT(DISTINCT pat_id), inv_all_us FROM pethprx.t01_samples GROUP BY inv_all_us;
 SELECT * FROM pethprx.t01_samples WHERE inv_par_us=1 LIMIT 0,10;
 
-
 ---------------------------------------------------------------------------------------------------
--- Info on nationalities
 ---------------------------------------------------------------------------------------------------
-
+-- Info on nationalities t3#
+---------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 /*
--- Check file (delete duplicates and organize as in nationality_classifier/nationality_classifier_02.R
--- Check code and save final table 
+-- TO RUN AFTER ../Nationality/01-prepare_nationalities_file.R
+It requires the following files inside the folder output:
+celgroups.csv           
+finalid_cel_prob.csv    
+finalid_nameinfo.csv    
+*/
 
-DROP TABLE IF EXISTS christian.id_nat;
-CREATE TABLE IF NOT EXISTS christian.id_nat
-(
-nrow varchar(6),
-finalID varchar(15),
-nation varchar(50),
-prob varchar(10),
-cname VARCHAR(500),
-name VARCHAR(500)
-)
-ENGINE=MyISAM
-CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+--------------------------
+-- t39_celgr taxonomy
+DROP TABLE IF EXISTS pethprx.t39_celgr;
+CREATE TABLE pethprx.t39_celgr (
+id INT UNSIGNED PRIMARY KEY,
+celgr_text VARCHAR(100)
+);
 
-
-LOAD DATA LOCAL INFILE '/media/christian/Server/Github/m2-migrations/data/nationality/nationality_all_names_only.csv' INTO TABLE christian.id_nat
+LOAD DATA LOCAL INFILE '/mnt/hdd2/repositories/christian/p_ethprx/output/celgroups.csv' INTO TABLE pethprx.t39_celgr
 FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"'  ESCAPED BY ''
 lines terminated by '\n'
 IGNORE 1 LINES ;
 SHOW WARNINGS;
 
-SHOW INDEX FROM christian.id_nat;
-ALTER TABLE christian.id_nat ADD INDEX(finalID);
+SELECT * FROM pethprx.t39_celgr LIMIT 10;
+
+--------------------------
+-- t31_inv_cel
+DROP TABLE IF EXISTS pethprx.t31_inv_cel;
+CREATE TABLE pethprx.t31_inv_cel (
+finalid VARCHAR(15),
+celgr_id VARCHAR(3),
+prob DOUBLE
+) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci ;
+ALTER TABLE pethprx.t31_inv_cel ADD INDEX(finalid);
+
+LOAD DATA LOCAL INFILE '/mnt/hdd2/repositories/christian/p_ethprx/output/finalid_cel_prob.csv' INTO TABLE pethprx.t31_inv_cel 
+FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"'  ESCAPED BY ''
+lines terminated by '\n'
+IGNORE 1 LINES;
+SHOW WARNINGS;
+/*
+Query OK, 26084097 rows affected (1 min 52,42 sec)
+Records: 26084097  Deleted: 0  Skipped: 0  Warnings: 0
+*/
+
+ALTER TABLE pethprx.t31_inv_cel ADD COLUMN id SERIAL FIRST, ADD COLUMN inv_fid BIGINT UNSIGNED AFTER finalid;
+
+UPDATE pethprx.t31_inv_cel a 
+	SET a.celgr_id=SUBSTRING(a.celgr_id, 2); 
+ALTER TABLE pethprx.t31_inv_cel MODIFY celgr_id INT UNSIGNED;
+ALTER TABLE pethprx.t31_inv_cel ADD INDEX(celgr_id);
+
+UPDATE pethprx.t31_inv_cel a INNER JOIN riccaboni2017.t09_inv b 
+	ON a.finalid=b.finalid
+	SET a.inv_fid=b.fid;
+/*
+Query OK, 26084097 rows affected (17 min 8,56 sec)
+Rows matched: 26084097  Changed: 26084097  Warnings: 0
+*/
+
+SELECT * FROM pethprx.t31_inv_cel WHERE prob>0.5 LIMIT 10;
+SELECT COUNT(a.finalid) FROM (SELECT b.finalid, SUM(b.prob) FROM pethprx.t31_inv_cel b GROUP BY b.finalid HAVING SUM(b.prob)>1) a;
+/*
++------------------+
+| COUNT(a.finalid) |
++------------------+
+|           120603 |
++------------------+
+1 row in set (1 min 23,99 sec)
+*/
+SELECT COUNT(a.finalid) FROM (SELECT b.finalid, SUM(b.prob) FROM pethprx.t31_inv_cel b GROUP BY b.finalid HAVING SUM(b.prob)>1.1) a;
+--------------------------
+-- t30_inv_name
+
+DROP TABLE IF EXISTS pethprx.t30_inv_name;
+CREATE TABLE pethprx.t30_inv_name (
+finalid VARCHAR(15),
+fname VARCHAR(100),
+name VARCHAR(255)
+) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci ;
+
+ALTER TABLE pethprx.t30_inv_name ADD INDEX(finalid);
+LOAD DATA LOCAL INFILE '/mnt/hdd2/repositories/christian/p_ethprx/output/finalid_nameinfo.csv' INTO TABLE pethprx.t30_inv_name 
+FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"'  ESCAPED BY ''
+lines terminated by '\n'
+IGNORE 1 LINES;
+SHOW WARNINGS;
+/*
+Query OK, 668823 rows affected (8,89 sec)
+Records: 668823  Deleted: 0  Skipped: 0  Warnings: 0
+*/
+
+ALTER TABLE pethprx.t30_inv_name ADD COLUMN id SERIAL FIRST, ADD COLUMN inv_fid BIGINT UNSIGNED AFTER finalid;
+
+UPDATE pethprx.t30_inv_name a INNER JOIN riccaboni2017.t09_inv b 
+	ON a.finalid=b.finalid
+	SET a.inv_fid=b.fid;
+/*
+Query OK, 668823 rows affected (25,49 sec)
+Rows matched: 668823  Changed: 668823  Warnings: 0
 */
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 ---------------------------------------------------------------------------------------------------
--- List of directed links at the patent level
+---------------------------------------------------------------------------------------------------
+-- Networks t5# 
+---------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------
 /*
 -- Only for the patents
 */
 
-DROP TABLE IF EXISTS riccaboni.edges_dir;
-CREATE TABLE riccaboni.edges_dir AS
-SELECT DISTINCT a.finalID, b.finalID AS finalID_, a.pat
-      FROM riccaboni.t_id_pat a
-      INNER JOIN riccaboni.t_id_pat b
-      ON a.pat=b.pat
-      WHERE a.finalID!=b.finalID;
-/*
-WHERE a.ID!=b.ID IS TO AVOID LINKS TO THEMSELVES
-Query OK, 10632746 rows affected (5 min 48,28 sec)
-Records: 10632746  Duplicates: 0  Warnings: 0
+SHOW INDEX FROM pethprx.t01_samples;
+SHOW INDEX FROM riccaboni2017.t08;
+SHOW INDEX FROM riccaboni2017.t08_inv;
 
+--------------------------
+-- List of final inventor ids (fid_id, after using the mobility links) and patents pat_id
+-- All patents in the studied classes, not at least one or full (to select later when linking with pat)
+DROP TABLE IF EXISTS pethprx.t50_id_pat;
+CREATE TABLE  pethprx.t50_id_pat AS
+SELECT DISTINCT c.inv_fid, a.pat_id
+	FROM pethprx.t01_samples a
+	INNER JOIN riccaboni2017.t08 b
+	ON a.pat_id=b.pat_id
+	INNER JOIN riccaboni2017.t08_inv c
+	ON b.inv_id=c.id;
+/*
+Query OK, 6787539 rows affected (1 min 35,38 sec)
+Records: 6787539  Duplicates: 0  Warnings: 0
 */
 
-SHOW INDEX FROM riccaboni.edges_dir;                                     
-ALTER TABLE riccaboni.edges_dir ADD INDEX(pat);
+ALTER TABLE pethprx.t50_id_pat ADD INDEX(inv_fid);
+ALTER TABLE pethprx.t50_id_pat ADD INDEX(pat_id);
+SHOW INDEX FROM pethprx.t50_id_pat;                                     
 
-SELECT * FROM riccaboni.edges_dir LIMIT 0,30;
+
+SELECT * FROM pethprx.t50_id_pat LIMIT 0,10;
+-- To count number of inventor-patent pairs when at least one member of a team is in the US
+SELECT COUNT(*) FROM pethprx.t50_id_pat a INNER JOIN pethprx.t01_samples b ON a.pat_id=b.pat_id WHERE b.inv_par_us=1;
+/*
++----------+
+| COUNT(*) |
++----------+
+|  3225641 |
++----------+
+1 row in set (6,16 sec)
+*/
+
+--------------------------
+--List of directed links at the patent level
+/*
+-- This table can be used to create networks:
+- by field or collapsing by year, when joined with t01_samples
+- selecting ethnic focal inventors, when joined with table (TO CREATE WITH DIFFERENT DEFINITIONS OF ETHNIC INVENTORS)
+- CREATE COLUMN IN t01_samples tagging patents when there is at least one ethnic inventor
+*/
+
+DROP TABLE IF EXISTS pethprx.t51_edir;
+CREATE TABLE pethprx.t51_edir AS
+SELECT DISTINCT a.inv_fid, b.inv_fid AS inv_fid_, a.pat_id
+      FROM pethprx.t50_id_pat a
+      INNER JOIN pethprx.t50_id_pat b
+      ON a.pat_id=b.pat_id
+      WHERE a.inv_fid!=b.inv_fid;
+/*
+WHERE a.ID!=b.ID IS TO AVOID LINKS TO THEMSELVES
+Query OK, 23129974 rows affected (3 min 40,01 sec)
+Records: 23129974  Duplicates: 0  Warnings: 0
+*/
+
+SHOW INDEX FROM pethprx.t51_edir;                                     
+ALTER TABLE pethprx.t51_edir ADD INDEX(pat_id);
+ALTER TABLE pethprx.t51_edir ADD INDEX(inv_fid);
+ALTER TABLE pethprx.t51_edir ADD INDEX(inv_fid_);
+
+SELECT * FROM pethprx.t51_edir LIMIT 0,30;
+
+
 
 
 
