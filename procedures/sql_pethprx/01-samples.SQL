@@ -220,7 +220,11 @@ lines terminated by '\n'
 IGNORE 1 LINES ;
 SHOW WARNINGS;
 
-SELECT * FROM pethprx.t39_celgr LIMIT 10;
+SELECT * FROM pethprx.t39_celgr LIMIT 50;
+
+SELECT * FROM pethprx.t39_celgr WHERE celgr_text IN('EastAsian.Chinese','SouthAsian','Muslim.Persian','EastAsian.Japan','EastAsian.South.Korea',
+'European.French','European.German','European.Italian.Italy','European.EastEuropean',
+'European.Russian','EastAsian.Indochina.Vietnam','EastAsian.Malay.Indonesia');
 
 --------------------------
 -- t31_inv_cel
@@ -256,6 +260,7 @@ UPDATE pethprx.t31_inv_cel a INNER JOIN riccaboni2017.t09_inv b
 Query OK, 26084097 rows affected (17 min 8,56 sec)
 Rows matched: 26084097  Changed: 26084097  Warnings: 0
 */
+ALTER TABLE pethprx.t31_inv_cel ADD INDEX(inv_fid);
 
 SELECT * FROM pethprx.t31_inv_cel WHERE prob>0.5 LIMIT 10;
 SELECT COUNT(a.finalid) FROM (SELECT b.finalid, SUM(b.prob) FROM pethprx.t31_inv_cel b GROUP BY b.finalid HAVING SUM(b.prob)>1) a;
@@ -270,7 +275,19 @@ SELECT COUNT(a.finalid) FROM (SELECT b.finalid, SUM(b.prob) FROM pethprx.t31_inv
 SELECT COUNT(a.finalid) FROM (SELECT b.finalid, SUM(b.prob) FROM pethprx.t31_inv_cel b GROUP BY b.finalid HAVING SUM(b.prob)>1.1) a;
 --------------------------
 -- t30_inv_name
+/*
+id 
+finalid: final inventor id
+inv_fid: final inventor id (numeric)
+fname: Final cleaned name used when running name prism (attention, only one per inv_fid)
+name: Original name string without cleaning (attention, only one per inv_fid)
+ethnic: dummy variable if ethnic inventor (minimal criteria: Max probability belongs to any of the 12 studied groups)
+pat_np: Total number of PBOC patents between 1975 and 2012, no matter location (even outside the US)
+pat_nc: Total number of CTT patents between 1975 and 2012, no matter location (even outside the US)
 
+- Despite the fact that this table has more ids than the ones after matching with the all-us sample, there are 10157 inv_fid should be also analyzed in Nameprism 
+-- https://stackoverflow.com/questions/12102200/get-records-with-max-value-for-each-group-of-grouped-sql-results
+*/
 DROP TABLE IF EXISTS pethprx.t30_inv_name;
 CREATE TABLE pethprx.t30_inv_name (
 finalid VARCHAR(15),
@@ -298,6 +315,49 @@ UPDATE pethprx.t30_inv_name a INNER JOIN riccaboni2017.t09_inv b
 Query OK, 668823 rows affected (25,49 sec)
 Rows matched: 668823  Changed: 668823  Warnings: 0
 */
+ALTER TABLE pethprx.t30_inv_name ADD INDEX(inv_fid);
+
+SHOW INDEX FROM pethprx.t30_inv_name ;
+SELECT * FROM pethprx.t30_inv_name LIMIT 0,10;
+SELECT COUNT(DISTINCT inv_fid) FROM pethprx.t30_inv_name;
+
+ALTER TABLE pethprx.t30_inv_name ADD COLUMN ethnic BOOL, ADD COLUMN pat_np INT UNSIGNED, ADD COLUMN pat_nc INT UNSIGNED;
+
+ALTER TABLE pethprx.t30_inv_name ADD COLUMN celgr_id_max INT UNSIGNED AFTER ethnic, ADD COLUMN prob_max DOUBLE AFTER celgr_id_max;
+
+UPDATE pethprx.t30_inv_name a 
+	INNER JOIN (
+	SELECT o.inv_fid, o.celgr_id, o.prob
+	FROM pethprx.t31_inv_cel o         
+	LEFT JOIN pethprx.t31_inv_cel b
+	ON o.inv_fid = b.inv_fid AND (o.prob < b.prob OR (o.prob = b.prob AND o.id<b.id))
+	WHERE b.prob is NULL) c 
+	ON a.inv_fid=c.inv_fid
+	SET a.celgr_id_max=c.celgr_id, a.prob_max=c.prob;
+/*
+Query OK, 668823 rows affected (29 min 53,17 sec)
+Rows matched: 668823  Changed: 668823  Warnings: 0
+*/
+
+UPDATE pethprx.t30_inv_name a 
+	SET a.ethnic=1
+	WHERE a.celgr_id_max IN (3, 8, 10, 17, 23, 26, 27, 28, 29, 36, 38, 39);
+/*
+Query OK, 246026 rows affected (10 min 52,30 sec)
+Rows matched: 246026  Changed: 246026  Warnings: 0
+*/
+
+UPDATE pethprx.t30_inv_name a 
+	SET a.ethnic=0
+	WHERE a.celgr_id_max NOT IN (3, 8, 10, 17, 23, 26, 27, 28, 29, 36, 38, 39);
+/*
+Query OK, 422797 rows affected (6,11 sec)
+Rows matched: 422797  Changed: 422797  Warnings: 0
+*/
+
+-- ATTENTION: pat_np AND pat_nc ARE COMPUTED AFTER CREATING pethprx.t50_id_pat
+
+SELECT * FROM pethprx.t30_inv_name LIMIT 10;
 
 
 ---------------------------------------------------------------------------------------------------
@@ -331,6 +391,35 @@ Records: 6787539  Duplicates: 0  Warnings: 0
 
 ALTER TABLE pethprx.t50_id_pat ADD INDEX(inv_fid);
 ALTER TABLE pethprx.t50_id_pat ADD INDEX(pat_id);
+ 
+UPDATE pethprx.t30_inv_name a 
+	INNER JOIN (
+	SELECT b.inv_fid, COUNT(DISTINCT b.pat_id) AS pat_np
+	FROM pethprx.t50_id_pat b
+	INNER JOIN pethprx.t01_samples d
+	ON b.pat_id=d.pat_id
+	WHERE d.field IN ('p', 'i')
+	GROUP BY b.inv_fid
+	) d
+	ON a.inv_fid=d.inv_fid
+	SET a.pat_np=d.pat_np;
+/*
+Query OK, 281349 rows affected (1 min 6,60 sec)
+Rows matched: 281349  Changed: 281349  Warnings: 0
+*/
+
+UPDATE pethprx.t30_inv_name a 
+	INNER JOIN (
+	SELECT b.inv_fid, COUNT(DISTINCT b.pat_id) AS pat_nc
+	FROM pethprx.t50_id_pat b
+	INNER JOIN pethprx.t01_samples d
+	ON b.pat_id=d.pat_id
+	WHERE d.field IN ('c', 'i')
+	GROUP BY b.inv_fid
+	) d
+	ON a.inv_fid=d.inv_fid
+	SET a.pat_nc=d.pat_nc;
+
 SHOW INDEX FROM pethprx.t50_id_pat;                                     
 
 
@@ -345,6 +434,38 @@ SELECT COUNT(*) FROM pethprx.t50_id_pat a INNER JOIN pethprx.t01_samples b ON a.
 +----------+
 1 row in set (6,16 sec)
 */
+SELECT COUNT(DISTINCT inv_fid) FROM pethprx.t50_id_pat;
+/*
++-------------------------+
+| COUNT(DISTINCT inv_fid) |
++-------------------------+
+|                 1479424 |
++-------------------------+
+1 row in set (4,57 sec)
+*/
+SELECT COUNT(DISTINCT a.inv_fid) FROM pethprx.t50_id_pat a INNER JOIN pethprx.t01_samples b ON a.pat_id=b.pat_id WHERE b.inv_all_us=1;
+/*
++---------------------------+
+| COUNT(DISTINCT a.inv_fid) |
++---------------------------+
+|                    570956 |
++---------------------------+
+1 row in set (8,64 sec)
+*/
+SELECT COUNT(DISTINCT a.inv_fid) 
+	FROM pethprx.t50_id_pat a 
+	INNER JOIN pethprx.t01_samples b ON a.pat_id=b.pat_id 
+	INNER JOIN pethprx.t30_inv_name c ON a.inv_fid=c.inv_fid	
+	WHERE b.inv_all_us=1;
+/*
++---------------------------+
+| COUNT(DISTINCT a.inv_fid) |
++---------------------------+
+|                    560799 |
++---------------------------+
+1 row in set (13,55 sec)
+So, with this new sample, around 10157 inv_fid should be also analyzed in Nameprism 
+*/
 
 --------------------------
 --List of directed links at the patent level
@@ -352,6 +473,7 @@ SELECT COUNT(*) FROM pethprx.t50_id_pat a INNER JOIN pethprx.t01_samples b ON a.
 -- This table can be used to create networks:
 - by field or collapsing by year, when joined with t01_samples
 - selecting ethnic focal inventors, when joined with table (TO CREATE WITH DIFFERENT DEFINITIONS OF ETHNIC INVENTORS)
+- ATTENTION: Column sample_id is created after filling up table t53 
 - CREATE COLUMN IN t01_samples tagging patents when there is at least one ethnic inventor
 */
 
@@ -376,16 +498,182 @@ ALTER TABLE pethprx.t51_edir ADD INDEX(inv_fid_);
 SELECT * FROM pethprx.t51_edir LIMIT 0,30;
 
 
+--------------------------
+--List of undirected links at the year level
+/*
+id
+inv_fid  Minimun inv_fid between the pair ij, so min(i,j)
+inv_fid_ Maximum inv_fid between the pair ij, so max(i,j)
+EARLIEST_FILING_YEAR 
+cntrf Counterfactual link? 1 yes, 0: no, so real id
+
+-- This can be joined with the directed links table, but it may not be necessary
+*/
+DROP TABLE IF EXISTS pethprx.t52_eudir;
+CREATE TABLE pethprx.t52_eudir (
+id SERIAL,
+inv_fid  BIGINT UNSIGNED,
+inv_fid_  BIGINT UNSIGNED,
+EARLIEST_FILING_YEAR INT(4) UNSIGNED,
+cntrf BOOL
+)
+ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci ;
+ALTER TABLE pethprx.t52_eudir ADD INDEX(inv_fid);
+ALTER TABLE pethprx.t52_eudir ADD INDEX(inv_fid_);
+ALTER TABLE pethprx.t52_eudir ADD INDEX(EARLIEST_FILING_YEAR);
+ALTER TABLE pethprx.t52_eudir ADD UNIQUE (inv_fid, inv_fid_, EARLIEST_FILING_YEAR);
+
+INSERT INTO pethprx.t52_eudir (inv_fid, inv_fid_, EARLIEST_FILING_YEAR, cntrf) 
+SELECT DISTINCT LEAST(a.inv_fid, a.inv_fid_), GREATEST(a.inv_fid, a.inv_fid_), b.EARLIEST_FILING_YEAR, 0
+FROM pethprx.t51_edir a
+INNER JOIN pethprx.t01_samples b
+ON a.pat_id=b.pat_id;
+/*
+Query OK, 5237244 rows affected (5 min 9,62 sec)
+Records: 5237244  Duplicates: 0  Warnings: 0
+*/
+
+--------------------------
+-- Table of directed edges, first collaborations ever, all inventors in the US and the focal inventor is ethnic
+/*
+id
+inv_fid  Minimun inv_fid between the pair ij, so min(i,j)
+inv_fid_ Maximum inv_fid between the pair ij, so max(i,j)
+EARLIEST_FILING_YEAR 
+eudir_id Undirected Edge id from table t52
+inv_all_us This link in that year is found in at least one patent in which all the inventors were located in the US
+ethnic_focal The focal inventor belongs to any of the considered cel groups. Attention: there are a few missing ids, as we only get the cel group for the inventors belonging to a team with a least one inventor in the US, so they are assumed as non-ethnic
+- This can be joined with the directed links table
+- Constraint on inv_fid,inv_fid_, so first link ever
+
+TO DO: 
+- ADD COLUMN IDENTIFYING TOP MIGRANT INVENTORS
+*/
+DROP TABLE IF EXISTS pethprx.t53_sample;
+CREATE TABLE pethprx.t53_sample (
+id SERIAL,
+inv_fid  BIGINT UNSIGNED,
+inv_fid_  BIGINT UNSIGNED,
+EARLIEST_FILING_YEAR INT(4) UNSIGNED,
+inv_fid__ BIGINT UNSIGNED,
+eudir_id BIGINT UNSIGNED,
+inv_all_us BOOLEAN,
+ethnic_focal BOOLEAN,
+CONSTRAINT UNIQUE (inv_fid,inv_fid_)
+)
+ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci ;
+ALTER TABLE pethprx.t53_sample ADD INDEX(inv_fid);
+ALTER TABLE pethprx.t53_sample ADD INDEX(inv_fid_);
+ALTER TABLE pethprx.t53_sample ADD INDEX(EARLIEST_FILING_YEAR);
+ALTER TABLE pethprx.t53_sample ADD INDEX(inv_fid__);
+ALTER TABLE pethprx.t53_sample ADD INDEX(eudir_id);
+
+INSERT INTO pethprx.t53_sample (inv_fid, inv_fid_, EARLIEST_FILING_YEAR) 
+	SELECT DISTINCT o.inv_fid, o.inv_fid_, o.EARLIEST_FILING_YEAR
+	FROM (
+	SELECT DISTINCT a.inv_fid, a.inv_fid_, c.EARLIEST_FILING_YEAR
+	FROM pethprx.t51_edir a
+	INNER JOIN pethprx.t01_samples c
+	ON a.pat_id=c.pat_id) o         
+	LEFT JOIN (
+	SELECT DISTINCT a.inv_fid, a.inv_fid_, c.EARLIEST_FILING_YEAR
+	FROM pethprx.t51_edir a
+	INNER JOIN pethprx.t01_samples c
+	ON a.pat_id=c.pat_id) b
+	ON o.inv_fid = b.inv_fid AND o.inv_fid_= b.inv_fid_ AND o.EARLIEST_FILING_YEAR > b.EARLIEST_FILING_YEAR
+	WHERE b.EARLIEST_FILING_YEAR IS NULL;
+/*
+Query OK, 8440498 rows affected (18 min 50,78 sec)
+Records: 8440498  Duplicates: 0  Warnings: 0
+*/
+
+ALTER TABLE pethprx.t51_edir ADD COLUMN sample_id BIGINT UNSIGNED;
+UPDATE pethprx.t51_edir a 
+	INNER JOIN pethprx.t01_samples c
+	ON a.pat_id=c.pat_id
+	INNER JOIN pethprx.t53_sample b
+	ON a.inv_fid=b.inv_fid AND a.inv_fid_= b.inv_fid_ AND c.EARLIEST_FILING_YEAR=b.EARLIEST_FILING_YEAR
+	SET a.sample_id=b.id;
+/*
+Query OK, 17104918 rows affected (15 min 36,13 sec)
+Rows matched: 17104918  Changed: 17104918  Warnings: 0
+*/
+ALTER TABLE pethprx.t51_edir ADD INDEX(sample_id);
+
+UPDATE pethprx.t53_sample a 
+	INNER JOIN pethprx.t51_edir b
+	ON a.id=b.sample_id
+	INNER JOIN pethprx.t01_samples c
+	ON b.pat_id=c.pat_id
+	SET a.inv_all_us=1	
+	WHERE c.inv_all_us=1;
+/*
+Query OK, 2929718 rows affected (2 min 15,52 sec)
+Rows matched: 2929718  Changed: 2929718  Warnings: 0
+*/
+
+UPDATE pethprx.t53_sample a 
+	SET a.inv_all_us=0	
+	WHERE a.inv_all_us IS NULL;
+/*
+Query OK, 5510780 rows affected (2 min 38,57 sec)
+Rows matched: 5510780  Changed: 5510780  Warnings: 0
+*/
+
+UPDATE pethprx.t53_sample a 
+	INNER JOIN pethprx.t30_inv_name b
+	ON a.inv_fid=b.inv_fid
+	SET a.ethnic_focal=1	
+	WHERE b.ethnic=1;
+/*
+Query OK, 1895781 rows affected (1 min 17,71 sec)
+Rows matched: 1895781  Changed: 1895781  Warnings: 0
+*/
+
+UPDATE pethprx.t53_sample a 
+	SET a.ethnic_focal=0	
+	WHERE a.ethnic_focal IS NULL;
+/*
+Query OK, 6544717 rows affected (3 min 54,76 sec)
+Rows matched: 6544717  Changed: 6544717  Warnings: 0
+*/
+
+UPDATE pethprx.t53_sample a 
+	INNER JOIN pethprx.t52_eudir b
+	ON LEAST(a.inv_fid, a.inv_fid_)=b.inv_fid AND GREATEST(a.inv_fid, a.inv_fid_)=b.inv_fid_ AND a.EARLIEST_FILING_YEAR=b.EARLIEST_FILING_YEAR
+	SET a.eudir_id=b.id;
+/*
+Query OK, 8440498 rows affected (13 min 20,58 sec)
+Rows matched: 8440498  Changed: 8440498  Warnings: 0
+*/
 
 
+/*
+
+-- ATTENTION: Counterfactuals only when ethnic_focal=1 and inv_all_us=1	
+UPDATE pethprx.t53_sample a 
+	INNER JOIN pethprx.t51_edir b
+	ON a.id=b.sample_id
+	-- EXPAND IPC codes
+	-- JOIN USING IPC AND YEAR ANOTHER NODE IN THE SAME FIELD
+	-- LEFT JOIN ON t52_eudir and keep only null (links not present)
+	SET a.inv_fid__=
+	WHERE a.ethnic_focal=1 and a.inv_all_us=1 ;
+*/
+
+SELECT COUNT(*) FROM pethprx.t53_sample a WHERE a.ethnic_focal=1 and a.inv_all_us=1 ;
+
+SELECT * FROM pethprx.t53_sample LIMIT 0,10;
+
+ALTER TABLE pethprx.t51_edir ADD INDEX(sample_id);
 
 -- Main table for the link inventor patent or year
 -- At the level of final ID
 -- One address per link
--
 
 -- inv_fid->t08 to get pat_id ->t01_sample-to get pat_id and years (on both conditions) -> with that patent list: comparisons
 -- Counterfactual for everysingle node no matter if they are ethnic?
 ---------------------------------------------------------------------------------------------------
 
-
+mysqldump -u root -p pethprx > '/mnt/hdd2/repositories/christian/p_ethprx/dbdump/pethprx-202005052002.sql'
+mysqldump -u root -p riccaboni2017 > '/mnt/hdd2/repositories/christian/p_ethprx/dbdump/riccaboni2017-202005052002.sql'
