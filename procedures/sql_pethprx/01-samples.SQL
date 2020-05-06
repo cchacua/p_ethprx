@@ -195,7 +195,97 @@ SELECT * FROM pethprx.t01_samples WHERE inv_par_us=1 LIMIT 0,10;
 
 ---------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------
--- Info on nationalities t3#
+-- t10_samples IPC Codes inv_all_us=1
+---------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+/*
+Attention: this file is intended to be used when doing the joins required for building the counterfactual
+It only covers the patents from t01_samples where all the inventors are located in the US (inv_all_us=1)
+and IPC codes, that have been shortened to 7 characters maximum
+*/
+DROP TABLE IF EXISTS pethprx.t10_samples;
+CREATE TABLE pethprx.t10_samples (
+id SERIAL,
+pat_id BIGINT UNSIGNED,
+class VARCHAR(7),
+CONSTRAINT UNIQUE (pat_id, class)
+) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci ;
+ALTER TABLE pethprx.t10_samples ADD INDEX(pat_id);
+ALTER TABLE pethprx.t10_samples ADD INDEX(class);
+
+INSERT INTO pethprx.t10_samples(pat_id, class) 
+SELECT DISTINCT a.pat_id, LEFT(a.class, 7) 
+FROM riccaboni2017.t10 a
+INNER JOIN pethprx.t01_samples b
+ON a.pat_id=b.pat_id
+WHERE a.class_type IN ('i', 'm') AND b.inv_all_us=1;
+/*
+Query OK, 4076456 rows affected (5 min 1,47 sec)
+Records: 4076456  Duplicates: 0  Warnings: 0
+*/
+
+--------------------------
+-- t10_ipc7
+DROP TABLE IF EXISTS pethprx.t10_ipc7;
+CREATE TABLE pethprx.t10_ipc7 (
+id SERIAL,
+class VARCHAR(7),
+CONSTRAINT UNIQUE(class)
+)
+ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci ;
+ALTER TABLE pethprx.t10_ipc7 ADD INDEX(class);
+INSERT INTO pethprx.t10_ipc7(class) 
+SELECT DISTINCT a.class
+FROM pethprx.t10_samples a;
+/*
+Query OK, 5876 rows affected (0,27 sec)
+Records: 5876  Duplicates: 0  Warnings: 0
+*/
+
+ALTER TABLE pethprx.t10_samples ADD COLUMN ipc7_id BIGINT UNSIGNED AFTER class;
+UPDATE pethprx.t10_samples a INNER JOIN pethprx.t10_ipc7 b 
+	ON a.class=b.class
+	SET a.ipc7_id=b.id;
+/*
+Query OK, 4076456 rows affected (2 min 22,21 sec)
+Rows matched: 4076456  Changed: 4076456  Warnings: 0
+*/
+ALTER TABLE pethprx.t10_samples ADD INDEX(ipc7_id);
+
+--------------------------
+-- t10_ipc4
+DROP TABLE IF EXISTS pethprx.t10_ipc4;
+CREATE TABLE pethprx.t10_ipc4 (
+id SERIAL,
+class VARCHAR(4),
+CONSTRAINT UNIQUE(class)
+)
+ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci ;
+ALTER TABLE pethprx.t10_ipc4 ADD INDEX(class);
+INSERT INTO pethprx.t10_ipc4(class) 
+SELECT DISTINCT LEFT(a.class, 4)
+FROM pethprx.t10_samples a;
+/*
+Query OK, 620 rows affected (11,00 sec)
+Records: 620  Duplicates: 0  Warnings: 0
+*/
+
+ALTER TABLE pethprx.t10_samples ADD COLUMN ipc4_id BIGINT UNSIGNED AFTER class;
+UPDATE pethprx.t10_samples a INNER JOIN pethprx.t10_ipc4 b 
+	ON LEFT(a.class, 4)=b.class
+	SET a.ipc4_id=b.id;
+/*
+Query OK, 4076456 rows affected (3 min 34,20 sec)
+Rows matched: 4076456  Changed: 4076456  Warnings: 0
+*/
+ALTER TABLE pethprx.t10_samples ADD INDEX(ipc4_id);
+
+
+SELECT * FROM pethprx.t10_samples LIMIT 10;
+
+---------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+-- t3# Info on nationalities 
 ---------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------
 /*
@@ -356,6 +446,30 @@ Rows matched: 422797  Changed: 422797  Warnings: 0
 */
 
 -- ATTENTION: pat_np AND pat_nc ARE COMPUTED AFTER CREATING pethprx.t50_id_pat
+
+-- t01_sample add variable: eth_comp: the ethnic identify of all the inventors in the patent have been found
+ALTER TABLE pethprx.t01_samples ADD COLUMN eth_comp BOOL;
+UPDATE pethprx.t01_samples a 
+	INNER JOIN riccaboni2017.t08 b
+	ON a.pat_id = b.pat_id
+	INNER JOIN riccaboni2017.t08_inv c
+	ON b.inv_id = c.id
+	LEFT JOIN pethprx.t30_inv_name d
+	ON c.inv_fid=d.inv_fid 
+	SET a.eth_comp=0
+	WHERE d.inv_fid IS NULL; 
+/*
+Query OK, 1151401 rows affected (4 min 7,07 sec)
+Rows matched: 1151401  Changed: 1151401  Warnings: 0
+*/
+
+UPDATE pethprx.t01_samples a 
+	SET a.eth_comp=1	
+	WHERE a.eth_comp IS NULL;
+/*
+Query OK, 1223627 rows affected (20,11 sec)
+Rows matched: 1223627  Changed: 1223627  Warnings: 0
+*/
 
 SELECT * FROM pethprx.t30_inv_name LIMIT 10;
 
@@ -534,11 +648,11 @@ Records: 5237244  Duplicates: 0  Warnings: 0
 */
 
 --------------------------
--- Table of directed edges, first collaborations ever, all inventors in the US and the focal inventor is ethnic
+-- Table of directed edges, first collaborations ever with the columns: all inventors in the US and focal inventor is ethnic
 /*
 id
-inv_fid  Minimun inv_fid between the pair ij, so min(i,j)
-inv_fid_ Maximum inv_fid between the pair ij, so max(i,j)
+inv_fid  
+inv_fid_
 EARLIEST_FILING_YEAR 
 eudir_id Undirected Edge id from table t52
 inv_all_us This link in that year is found in at least one patent in which all the inventors were located in the US
@@ -647,30 +761,140 @@ Query OK, 8440498 rows affected (13 min 20,58 sec)
 Rows matched: 8440498  Changed: 8440498  Warnings: 0
 */
 
+ALTER TABLE pethprx.t53_sample ADD COLUMN eth_comp BOOL;
 
-/*
-
--- ATTENTION: Counterfactuals only when ethnic_focal=1 and inv_all_us=1	
 UPDATE pethprx.t53_sample a 
 	INNER JOIN pethprx.t51_edir b
 	ON a.id=b.sample_id
-	-- EXPAND IPC codes
-	-- JOIN USING IPC AND YEAR ANOTHER NODE IN THE SAME FIELD
-	-- LEFT JOIN ON t52_eudir and keep only null (links not present)
-	SET a.inv_fid__=
-	WHERE a.ethnic_focal=1 and a.inv_all_us=1 ;
+	INNER JOIN pethprx.t01_samples c
+	ON b.pat_id=c.pat_id
+	SET a.eth_comp=1	
+	WHERE c.eth_comp=1;
+/*
+Query OK, 3864146 rows affected (3 min 37,34 sec)
+Rows matched: 3864146  Changed: 3864146  Warnings: 
 */
 
-SELECT COUNT(*) FROM pethprx.t53_sample a WHERE a.ethnic_focal=1 and a.inv_all_us=1 ;
+UPDATE pethprx.t53_sample a 
+	SET a.eth_comp=0	
+	WHERE a.eth_comp IS NULL;
+/*
+Query OK, 4576352 rows affected (2 min 17,92 sec)
+Rows matched: 4576352  Changed: 4576352  Warnings: 0
+*/
+
+
+
+--------------------------
+-- Table of of inventors, year and ipc codes for counterfactual
+DROP TABLE IF EXISTS pethprx.t54_invipc;
+CREATE TABLE pethprx.t54_invipc AS
+SELECT DISTINCT d.inv_fid, e.EARLIEST_FILING_YEAR, f.ipc7_id 
+	FROM pethprx.t51_edir d
+	INNER JOIN pethprx.t01_samples e
+	ON d.pat_id=e.pat_id
+	INNER JOIN pethprx.t10_samples f
+	ON e.pat_id=f.pat_id
+	WHERE e.inv_all_us=1 AND e.eth_comp=1;
+/*
+Query OK, 5491194 rows affected (4 min 38,90 sec)
+Records: 5491194  Duplicates: 0  Warnings: 0
+*/
+-- TO RUN FROM HERE ON
+ALTER TABLE pethprx.t54_invipc ADD INDEX(inv_fid);
+ALTER TABLE pethprx.t54_invipc ADD INDEX(EARLIEST_FILING_YEAR);
+ALTER TABLE pethprx.t54_invipc ADD INDEX(ipc7_id);
+
+ALTER TABLE pethprx.t53_sample ADD COLUMN cntrf_round INT AFTER inv_fid__;
+
+UPDATE pethprx.t53_sample a,
+	LATERAL(
+	SELECT h.inv_fid
+	FROM pethprx.t51_edir b
+	INNER JOIN pethprx.t01_samples d
+	ON b.pat_id=d.pat_id
+	INNER JOIN pethprx.t10_samples c
+	ON d.pat_id=c.pat_id
+	INNER JOIN pethprx.t54_invipc h
+	ON c.ipc7_id=h.ipc7_id AND d.EARLIEST_FILING_YEAR=h.EARLIEST_FILING_YEAR 
+	LEFT JOIN pethprx.t53_sample y
+	ON b.inv_fid=y.inv_fid AND h.inv_fid=y.inv_fid_
+	LEFT JOIN pethprx.t53_sample z
+	ON b.inv_fid_=z.inv_fid AND h.inv_fid=z.inv_fid_
+	WHERE a.id=b.sample_id AND d.inv_all_us=1 AND d.eth_comp=1 AND y.inv_fid_ IS NULL AND z.inv_fid_ IS NULL
+	ORDER BY RAND() LIMIT 1
+	) x
+	SET a.inv_fid__=x.inv_fid AND a.cntrf_round=1
+	WHERE a.ethnic_focal=1 and a.inv_all_us=1 and a.eth_comp=1;
+/*
+For getting the counterfactual node h:
+
+- From table pethprx.t53_sample, I only take the sample of ij links that belong to patents in which the focal inventor is ethnic, all the inventors are located in the US and I have complete ethnic information for all the people listed in a patent; ethnic_focal=1 and inv_all_us=1 nd a.eth_comp=1
+- Then I do a lateral join where I define the characteristics of the counterfactual nodes and the number of counterfactuals (1 in this case, as I am still keeping the directed network):
+	- I beging with t51_edir, to get the pat_id and the IPC clases
+	- Then I match all nodes who have collaborated in the same year with anyone else and who have patented in the same technological class of the collaboration ij
+	- Then I do two lateral joins with table t53 without the year to eliminate the collaborations that have ever occur (so ih and jh have never collaborated in the whole sample).
+
+When creating the final sample:
+- Only the undirected id should be used 
+
+-- https://dev.mysql.com/doc/refman/8.0/en/lateral-derived-tables.html
+
+*/
+
+SELECT DISTINCT a.inv_fid, a.inv_fid_, a.EARLIEST_FILING_YEAR , x.inv_fid AS inv_fid__
+	FROM pethprx.t53_sample a,
+	LATERAL(
+	SELECT h.inv_fid
+	FROM pethprx.t51_edir b
+	INNER JOIN pethprx.t01_samples d
+	ON b.pat_id=d.pat_id
+	INNER JOIN pethprx.t10_samples c
+	ON d.pat_id=c.pat_id
+	INNER JOIN pethprx.t54_invipc h
+	ON c.ipc7_id=h.ipc7_id AND d.EARLIEST_FILING_YEAR=h.EARLIEST_FILING_YEAR 
+	LEFT JOIN pethprx.t53_sample y
+	ON b.inv_fid=y.inv_fid AND h.inv_fid=y.inv_fid_
+	LEFT JOIN pethprx.t53_sample z
+	ON b.inv_fid_=z.inv_fid AND h.inv_fid=z.inv_fid_
+	WHERE a.id=b.sample_id AND d.inv_all_us=1 AND d.eth_comp=1 AND y.inv_fid_ IS NULL AND z.inv_fid_ IS NULL
+	ORDER BY RAND() LIMIT 1
+	) x
+	WHERE a.ethnic_focal=1 and a.inv_all_us=1 and a.eth_comp=1
+	LIMIT 30;
+
+
+SELECT DISTINCT a.inv_fid, a.inv_fid_, a.EARLIEST_FILING_YEAR
+	FROM pethprx.t53_sample a
+	INNER JOIN pethprx.t51_edir b
+	ON a.id=b.sample_id
+	INNER JOIN pethprx.t10_samples c
+	ON b.pat_id=c.pat_id
+	WHERE a.ethnic_focal=1 and a.inv_all_us=1 and a.eth_comp=1
+	LIMIT 30;
+
+SELECT * FROM pethprx.t53_sample WHERE inv_fid=50063;
+SELECT * FROM pethprx.t53_sample WHERE inv_fid=4014766;
+
+
+SELECT COUNT(*) FROM pethprx.t53_sample a WHERE a.ethnic_focal=1 AND a.inv_all_us=1 AND a.eth_comp=1;
 
 SELECT * FROM pethprx.t53_sample LIMIT 0,10;
+SELECT * FROM pethprx.t54_invipc LIMIT 0,10;
+SELECT * FROM pethprx.t01_samples LIMIT 0,10;
+SELECT * FROM pethprx.t51_edir LIMIT 0,10;
+
+SHOW INDEX FROM pethprx.t54_invipc;
 
 ALTER TABLE pethprx.t51_edir ADD INDEX(sample_id);
 
 -- Main table for the link inventor patent or year
 -- At the level of final ID
 -- One address per link
-
+-- I take the list from t51_edir, as they are supposed to have collaborated with anyone else
+	-- EXPAND IPC codes
+	-- JOIN USING IPC AND YEAR ANOTHER NODE IN THE SAME FIELD
+	-- LEFT JOIN ON t52_eudir during specific time window and keep only null (links not present)
 -- inv_fid->t08 to get pat_id ->t01_sample-to get pat_id and years (on both conditions) -> with that patent list: comparisons
 -- Counterfactual for everysingle node no matter if they are ethnic?
 ---------------------------------------------------------------------------------------------------
