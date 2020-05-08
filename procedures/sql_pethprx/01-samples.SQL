@@ -805,9 +805,195 @@ ALTER TABLE pethprx.t54_invipc ADD INDEX(inv_fid);
 ALTER TABLE pethprx.t54_invipc ADD INDEX(EARLIEST_FILING_YEAR);
 ALTER TABLE pethprx.t54_invipc ADD INDEX(ipc7_id);
 
-ALTER TABLE pethprx.t53_sample ADD COLUMN cntrf_round INT AFTER inv_fid__;
+--------------------------
+-- t55_invyear
+/*
+tyr_c: Number of times (years) an inventor has patented in the last five years (t-5 to t-1) (unit: number of years, not of patents) in the CTT field
+tyr_p: Number of times (years) an inventor has patented in the last five years (t-5 to t-1) (unit: number of years, not of patents) in the PBOC field
+dg_c: degree centrality for the CTT sample, no matter geographical location, undirected measure (computed from one side of a directed network), for the network between t-5 and t-1
+dg_p: degree centrality for the PBOC sample, no matter geographical location, undirected measure (computed from one side of a directed network),  for the network between t-5 and t-1
+dg_c_10: degree centrality for the CTT sample, no matter geographical location, undirected measure (computed from one side of a directed network), for the network between t-10 and t-1
+dg_p_10: degree centrality for the PBOC sample, no matter geographical location, undirected measure (computed from one side of a directed network),  for the network between t-10 and t-1
 
-UPDATE pethprx.t53_sample a,
+Null values in degree measures are explained by non-collaborative patents (single-author patents)
+This table is relevant to identify the sample that includes inventors who have already patented
+-- ATTENTION: SEPARATE COUNTINGS BY SAMPLE
+*/
+DROP TABLE IF EXISTS pethprx.t55_invyear;
+CREATE TABLE pethprx.t55_invyear AS
+WITH t1 AS (SELECT DISTINCT d.inv_fid, e.EARLIEST_FILING_YEAR, e.field
+	FROM pethprx.t50_id_pat d
+	INNER JOIN pethprx.t01_samples e
+	ON d.pat_id=e.pat_id)
+SELECT a.inv_fid, a.EARLIEST_FILING_YEAR, COUNT(DISTINCT (CASE WHEN b.field IN ('i', 'c') THEN b.EARLIEST_FILING_YEAR END)) AS tyr_c, COUNT(DISTINCT (CASE WHEN b.field IN ('i', 'p') THEN b.EARLIEST_FILING_YEAR END)) AS tyr_p
+	FROM t1 a
+	LEFT JOIN t1 b
+	ON a.inv_fid=b.inv_fid AND (CAST(a.EARLIEST_FILING_YEAR AS SIGNED)-CAST(b.EARLIEST_FILING_YEAR AS SIGNED)) BETWEEN 1 AND 5
+	GROUP BY a.inv_fid, a.EARLIEST_FILING_YEAR;
+/*
+Query OK, 2794108 rows affected (1 min 1,22 sec)
+Records: 2794108  Duplicates: 0  Warnings: 0
+*/
+ALTER TABLE pethprx.t55_invyear ADD INDEX(inv_fid);
+ALTER TABLE pethprx.t55_invyear ADD INDEX(EARLIEST_FILING_YEAR);
+
+-- Degree centralities t-1 to t-5
+ALTER TABLE pethprx.t55_invyear ADD COLUMN dg_c INT UNSIGNED, ADD COLUMN dg_p INT UNSIGNED;
+WITH t2 AS (SELECT DISTINCT d.inv_fid, d.inv_fid_,  e.EARLIEST_FILING_YEAR, e.field
+	FROM pethprx.t51_edir d
+	INNER JOIN pethprx.t01_samples e
+	ON d.pat_id=e.pat_id)
+UPDATE pethprx.t55_invyear x
+INNER JOIN (
+	SELECT a.inv_fid, a.EARLIEST_FILING_YEAR, 
+	COUNT(DISTINCT (CASE WHEN b.field IN ('i', 'c') THEN b.inv_fid_ END)) AS dg_c, 
+	COUNT(DISTINCT (CASE WHEN b.field IN ('i', 'p') THEN b.inv_fid_ END)) AS dg_p
+	FROM  pethprx.t55_invyear a
+	INNER JOIN t2 b
+	ON a.inv_fid=b.inv_fid AND (CAST(a.EARLIEST_FILING_YEAR AS SIGNED)-CAST(b.EARLIEST_FILING_YEAR AS SIGNED)) BETWEEN 1 AND 5
+	GROUP BY a.inv_fid, a.EARLIEST_FILING_YEAR) y
+	ON x.inv_fid=y.inv_fid AND x.EARLIEST_FILING_YEAR=y.EARLIEST_FILING_YEAR
+	SET x.dg_c=y.dg_c, x.dg_p=y.dg_p;
+/*
+Query OK, 1111057 rows affected (4 min 49,21 sec)
+Rows matched: 1111057  Changed: 1111057  Warnings: 0
+*/
+
+-- Degree centralities t-10 to t-1
+ALTER TABLE pethprx.t55_invyear ADD COLUMN dg_c_10 INT UNSIGNED, ADD COLUMN dg_p_10 INT UNSIGNED;
+WITH t2 AS (SELECT DISTINCT d.inv_fid, d.inv_fid_,  e.EARLIEST_FILING_YEAR, e.field
+	FROM pethprx.t51_edir d
+	INNER JOIN pethprx.t01_samples e
+	ON d.pat_id=e.pat_id)
+UPDATE pethprx.t55_invyear x
+INNER JOIN (
+	SELECT a.inv_fid, a.EARLIEST_FILING_YEAR, 
+	COUNT(DISTINCT (CASE WHEN b.field IN ('i', 'c') THEN b.inv_fid_ END)) AS dg_c_10, 
+	COUNT(DISTINCT (CASE WHEN b.field IN ('i', 'p') THEN b.inv_fid_ END)) AS dg_p_10
+	FROM  pethprx.t55_invyear a
+	INNER JOIN t2 b
+	ON a.inv_fid=b.inv_fid AND (CAST(a.EARLIEST_FILING_YEAR AS SIGNED)-CAST(b.EARLIEST_FILING_YEAR AS SIGNED)) BETWEEN 1 AND 10
+	GROUP BY a.inv_fid, a.EARLIEST_FILING_YEAR) y
+	ON x.inv_fid=y.inv_fid AND x.EARLIEST_FILING_YEAR=y.EARLIEST_FILING_YEAR
+	SET x.dg_c_10=y.dg_c_10, x.dg_p_10=y.dg_p_10;
+/*
+Query OK, 1211855 rows affected (4 min 33,71 sec)
+Rows matched: 1211855  Changed: 1211855  Warnings: 0
+*/
+
+-- Percentile distributions for each of the sectors, by year (the share correspond to the share by year)
+ALTER TABLE pethprx.t55_invyear ADD COLUMN pc_c FLOAT, ADD COLUMN pc_p FLOAT,ADD COLUMN pc_c_10 FLOAT, ADD COLUMN pc_p_10 FLOAT;
+
+UPDATE pethprx.t55_invyear x
+	SET pc_c=NULL, pc_p=NULL, pc_c_10=NULL, pc_p_10=NULL;
+
+
+UPDATE pethprx.t55_invyear x
+	INNER JOIN (SELECT inv_fid, EARLIEST_FILING_YEAR,
+	ROUND( PERCENT_RANK() OVER (
+        PARTITION BY EARLIEST_FILING_YEAR
+        ORDER BY dg_c
+	),4) pc_c
+	FROM pethprx.t55_invyear
+	WHERE dg_c IS NOT NULL AND dg_c>0) y
+	ON x.inv_fid=y.inv_fid AND x.EARLIEST_FILING_YEAR=y.EARLIEST_FILING_YEAR
+	SET x.pc_c=y.pc_c;
+/*
+Query OK, 499344 rows affected (19,23 sec)
+Rows matched: 499344  Changed: 499344  Warnings: 0
+*/
+
+UPDATE pethprx.t55_invyear x
+	SET pc_p=NULL;
+
+UPDATE pethprx.t55_invyear x
+	INNER JOIN (SELECT inv_fid, EARLIEST_FILING_YEAR,
+	ROUND( PERCENT_RANK() OVER (
+        PARTITION BY EARLIEST_FILING_YEAR
+        ORDER BY dg_p
+	),4) pc_p
+	FROM pethprx.t55_invyear
+	WHERE dg_p IS NOT NULL AND dg_p>0) y
+	ON x.inv_fid=y.inv_fid AND x.EARLIEST_FILING_YEAR=y.EARLIEST_FILING_YEAR
+	SET x.pc_p=y.pc_p;
+/*
+Query OK, 645240 rows affected (24,14 sec)
+Rows matched: 645240  Changed: 645240  Warnings: 0
+*/
+
+UPDATE pethprx.t55_invyear x
+	INNER JOIN (SELECT inv_fid, EARLIEST_FILING_YEAR,
+	ROUND( PERCENT_RANK() OVER (
+        PARTITION BY EARLIEST_FILING_YEAR
+        ORDER BY dg_c_10
+	),4) pc_c_10
+	FROM pethprx.t55_invyear
+	WHERE dg_c_10 IS NOT NULL AND dg_c_10>0) y
+	ON x.inv_fid=y.inv_fid AND x.EARLIEST_FILING_YEAR=y.EARLIEST_FILING_YEAR
+	SET x.pc_c_10=y.pc_c_10;
+/*
+Query OK, 555921 rows affected (21,33 sec)
+Rows matched: 555921  Changed: 555921  Warnings: 0
+*/
+
+UPDATE pethprx.t55_invyear x
+	INNER JOIN (SELECT inv_fid, EARLIEST_FILING_YEAR,
+	ROUND( PERCENT_RANK() OVER (
+        PARTITION BY EARLIEST_FILING_YEAR
+        ORDER BY dg_p_10
+	),4) pc_p_10
+	FROM pethprx.t55_invyear
+	WHERE dg_p_10 IS NOT NULL AND dg_p_10>0) y
+	ON x.inv_fid=y.inv_fid AND x.EARLIEST_FILING_YEAR=y.EARLIEST_FILING_YEAR
+	SET x.pc_p_10=y.pc_p_10;
+/*
+Query OK, 703612 rows affected (27,93 sec)
+Rows matched: 703612  Changed: 703612  Warnings: 0
+*/
+
+SELECT * FROM pethprx.t55_invyear LIMIT 0,10;
+SELECT DISTINCT d.inv_fid, d.inv_fid_,  e.EARLIEST_FILING_YEAR, e.field
+	FROM pethprx.t51_edir d
+	INNER JOIN pethprx.t01_samples e
+	ON d.pat_id=e.pat_id
+	WHERE d.inv_fid=8 ORDER BY e.EARLIEST_FILING_YEAR LIMIT 0,50;
+
+SELECT * FROM pethprx.t55_invyear WHERE pc_c>0.9 LIMIT 0,10;
+
+---------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+-- Counterfactual samples t6# 
+---------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+
+
+--------------------------
+-- t61_s1 Sample 1
+/*
+Big sample, all inventors located in the US, only pairs when the focal inventor is ethnic and the information is available
+Attention: this table includes both senior, non senior and single-patent ever inventors
+
+Notes: to compute, as it takes a lot of time.
+*/
+
+DROP TABLE IF EXISTS pethprx.t61_s1;
+CREATE TABLE pethprx.t61_s1 (
+id SERIAL,
+sample_id BIGINT UNSIGNED,
+inv_fid__  BIGINT UNSIGNED,
+cntrf_round INT
+) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci ;
+ALTER TABLE pethprx.t61_s1 ADD INDEX(sample_id);
+ALTER TABLE pethprx.t61_s1 ADD INDEX(inv_fid__);
+
+INSERT INTO pethprx.t61_s1 (sample_id)
+SELECT a.id FROM pethprx.t53_sample a WHERE a.ethnic_focal=1 and a.inv_all_us=1 and a.eth_comp=1;
+/*
+Query OK, 1027815 rows affected (16,79 sec)
+Records: 1027815  Duplicates: 0  Warnings: 0
+*/
+SELECT * FROM pethprx.t61_s1 LIMIT 10;
+UPDATE pethprx.t61_s1 a,
 	LATERAL(
 	SELECT h.inv_fid
 	FROM pethprx.t51_edir b
@@ -821,11 +1007,10 @@ UPDATE pethprx.t53_sample a,
 	ON b.inv_fid=y.inv_fid AND h.inv_fid=y.inv_fid_
 	LEFT JOIN pethprx.t53_sample z
 	ON b.inv_fid_=z.inv_fid AND h.inv_fid=z.inv_fid_
-	WHERE a.id=b.sample_id AND d.inv_all_us=1 AND d.eth_comp=1 AND y.inv_fid_ IS NULL AND z.inv_fid_ IS NULL
-	ORDER BY RAND() LIMIT 1
+	WHERE a.sample_id=b.sample_id AND d.inv_all_us=1 AND d.eth_comp=1 AND y.inv_fid_ IS NULL AND z.inv_fid_ IS NULL
+	LIMIT 1
 	) x
-	SET a.inv_fid__=x.inv_fid AND a.cntrf_round=1
-	WHERE a.ethnic_focal=1 and a.inv_all_us=1 and a.eth_comp=1;
+	SET a.inv_fid__=x.inv_fid AND a.cntrf_round=1;
 /*
 For getting the counterfactual node h:
 
@@ -839,16 +1024,16 @@ When creating the final sample:
 - Only the undirected id should be used 
 
 -- https://dev.mysql.com/doc/refman/8.0/en/lateral-derived-tables.html
-
+-- https://jan.kneschke.de/projects/mysql/order-by-rand/
 */
 
-SELECT DISTINCT a.inv_fid, a.inv_fid_, a.EARLIEST_FILING_YEAR , x.inv_fid AS inv_fid__
-	FROM pethprx.t53_sample a,
-	LATERAL(
-	SELECT h.inv_fid
-	FROM pethprx.t51_edir b
+
+WITH t1 AS (SELECT l.id AS sample_id, h.inv_fid
+	FROM pethprx.t61_s1 l
+	INNER JOIN pethprx.t51_edir b
+	ON l.sample_id=b.sample_id
 	INNER JOIN pethprx.t01_samples d
-	ON b.pat_id=d.pat_id
+	ON d.inv_all_us=1 AND d.eth_comp=1 AND b.pat_id=d.pat_id
 	INNER JOIN pethprx.t10_samples c
 	ON d.pat_id=c.pat_id
 	INNER JOIN pethprx.t54_invipc h
@@ -857,11 +1042,153 @@ SELECT DISTINCT a.inv_fid, a.inv_fid_, a.EARLIEST_FILING_YEAR , x.inv_fid AS inv
 	ON b.inv_fid=y.inv_fid AND h.inv_fid=y.inv_fid_
 	LEFT JOIN pethprx.t53_sample z
 	ON b.inv_fid_=z.inv_fid AND h.inv_fid=z.inv_fid_
-	WHERE a.id=b.sample_id AND d.inv_all_us=1 AND d.eth_comp=1 AND y.inv_fid_ IS NULL AND z.inv_fid_ IS NULL
-	ORDER BY RAND() LIMIT 1
+	WHERE y.inv_fid_ IS NULL AND z.inv_fid_ IS NULL
+)
+SELECT DISTINCT x.inv_fid AS inv_fid__
+	FROM pethprx.t61_s1 a,
+	LATERAL(
+	SELECT m.inv_fid
+	FROM t1 m
+	WHERE a.id=m.sample_id 
+	LIMIT 1
 	) x
-	WHERE a.ethnic_focal=1 and a.inv_all_us=1 and a.eth_comp=1
 	LIMIT 30;
+-- a.inv_fid, a.inv_fid_, a.EARLIEST_FILING_YEAR , 
+
+--------------------------
+-- t62_s2 Sample 2
+/*
+Intermediate sample, 
+Same as t61 + only inventors who have also patented in the period t-5, t-1 (so to be able to compute other measures)
+Same as t61 means (all inventors located in the US, only pairs when the focal inventor is ethnic and the information is available)
+Attention: this table includes both senior, non senior. It excludes single-patent ever inventors
+
+Notes: to compute, as it takes a lot of time.
+*/
+
+DROP TABLE IF EXISTS pethprx.t62_s2;
+CREATE TABLE pethprx.t62_s2 (
+id SERIAL,
+sample_id BIGINT UNSIGNED,
+inv_fid__  BIGINT UNSIGNED,
+cntrf_round INT
+) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci ;
+ALTER TABLE pethprx.t62_s2 ADD INDEX(sample_id);
+ALTER TABLE pethprx.t62_s2 ADD INDEX(inv_fid__);
+
+INSERT INTO pethprx.t62_s2 (sample_id)
+SELECT a.id 
+FROM pethprx.t53_sample a 
+INNER JOIN pethprx.t55_invyear b
+ON (b.tyr_c>0 OR b.tyr_p>0) AND a.inv_fid=b.inv_fid AND a.EARLIEST_FILING_YEAR=b.EARLIEST_FILING_YEAR 
+INNER JOIN pethprx.t55_invyear c
+ON (c.tyr_c>0 OR c.tyr_p>0) AND a.inv_fid_=c.inv_fid AND a.EARLIEST_FILING_YEAR=c.EARLIEST_FILING_YEAR
+WHERE a.ethnic_focal=1 AND a.inv_all_us=1 AND a.eth_comp=1;
+/*
+Query OK, 207660 rows affected (23,30 sec)
+Records: 207660  Duplicates: 0  Warnings: 0
+*/
+
+
+DROP TABLE IF EXISTS pethprx.t62_s2_cntr;
+CREATE TABLE pethprx.t62_s2_cntr AS (
+WITH t1 AS (
+	SELECT DISTINCT a.inv_fid, a.ipc7_id, a.EARLIEST_FILING_YEAR
+	FROM pethprx.t54_invipc a
+	INNER JOIN pethprx.t55_invyear b
+	ON (b.tyr_c>0 OR b.tyr_p>0) AND a.inv_fid=b.inv_fid AND a.EARLIEST_FILING_YEAR=b.EARLIEST_FILING_YEAR 
+	)
+SELECT DISTINCT l.id AS sample_id, e.inv_fid
+	FROM pethprx.t62_s2 l
+	INNER JOIN pethprx.t51_edir b
+	ON l.sample_id=b.sample_id
+	INNER JOIN pethprx.t01_samples d
+	ON b.pat_id=d.pat_id
+	INNER JOIN pethprx.t10_samples c
+	ON d.pat_id=c.pat_id
+	INNER JOIN t1 e
+	ON c.ipc7_id=e.ipc7_id AND d.EARLIEST_FILING_YEAR=e.EARLIEST_FILING_YEAR 
+	LEFT JOIN pethprx.t53_sample y
+	ON b.inv_fid=y.inv_fid AND e.inv_fid=y.inv_fid_
+	LEFT JOIN pethprx.t53_sample z
+	ON b.inv_fid_=z.inv_fid AND e.inv_fid=z.inv_fid_
+	WHERE y.inv_fid_ IS NULL AND z.inv_fid_ IS NULL);
+-- Remember: in t54_invipc, all inventors have e.inv_all_us=1 AND e.eth_comp=1
+-- The join with  pethprx.t55_invyear is to ensure the counterfactual node has also at least one patent 
+
+SELECT * FROM pethprx.t62_s2_cntr LIMIT 10;
+
+
+--------------------------
+-- t63_s3 Sample 3
+/*
+Small size sample, 
+Same as t62 + the focal inventor should be a senior inventor and the non-focal non senior
+Senior inventor means being at thetop 10% in the degree distribution t-10, t-1 before the patent t
+Non senior meas not being at the top 10%
+Same as t62 means (all inventors located in the US, only pairs when the focal inventor is ethnic and the information is available + only inventors who have also patented in the period t-5, t-1 (so to be able to compute other measures)
+Attention: this table includes both senior (only in the focal side), non senior (in the non-focal side). It excludes single-patent ever inventors
+
+Notes: to compute, as it takes a lot of time.
+*/
+
+DROP TABLE IF EXISTS pethprx.t63_s3;
+CREATE TABLE pethprx.t63_s3 (
+id SERIAL,
+sample_id BIGINT UNSIGNED,
+inv_fid__  BIGINT UNSIGNED,
+cntrf_round INT
+) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci ;
+ALTER TABLE pethprx.t63_s3 ADD INDEX(sample_id);
+ALTER TABLE pethprx.t63_s3 ADD INDEX(inv_fid__);
+
+INSERT INTO pethprx.t63_s3 (sample_id)
+SELECT a.id 
+FROM pethprx.t53_sample a 
+INNER JOIN pethprx.t55_invyear b
+ON (b.tyr_c>0 OR b.tyr_p>0) AND (b.pc_c_10>=0.9 OR b.pc_p_10>=0.9) AND a.inv_fid=b.inv_fid AND a.EARLIEST_FILING_YEAR=b.EARLIEST_FILING_YEAR 
+INNER JOIN pethprx.t55_invyear c
+ON (c.tyr_c>0 OR c.tyr_p>0) AND (c.pc_c_10<0.9 OR c.pc_p_10<0.9) AND a.inv_fid_=c.inv_fid AND a.EARLIEST_FILING_YEAR=c.EARLIEST_FILING_YEAR
+WHERE a.ethnic_focal=1 AND a.inv_all_us=1 AND a.eth_comp=1;
+/*
+Query OK, 26394 rows affected (16,96 sec)
+Records: 26394  Duplicates: 0  Warnings: 0
+
+Query OK, 36307 rows affected (17,73 sec)
+Records: 36307  Duplicates: 0  Warnings: 0
+*/
+
+
+DROP TABLE IF EXISTS pethprx.t63_s3_cntr;
+CREATE TABLE pethprx.t63_s3_cntr AS (
+WITH t1 AS (
+	SELECT DISTINCT a.inv_fid, a.ipc7_id, a.EARLIEST_FILING_YEAR
+	FROM pethprx.t54_invipc a
+	INNER JOIN pethprx.t55_invyear b
+	ON (b.tyr_c>0 OR b.tyr_p>0) AND (b.pc_c_10<0.9 OR b.pc_p_10<0.9) AND a.inv_fid=b.inv_fid AND a.EARLIEST_FILING_YEAR=b.EARLIEST_FILING_YEAR 
+	)
+SELECT DISTINCT l.id AS sample_id, e.inv_fid
+	FROM pethprx.t63_s3 l
+	INNER JOIN pethprx.t51_edir b
+	ON l.sample_id=b.sample_id
+	INNER JOIN pethprx.t01_samples d
+	ON b.pat_id=d.pat_id
+	INNER JOIN pethprx.t10_samples c
+	ON d.pat_id=c.pat_id
+	INNER JOIN t1 e
+	ON c.ipc7_id=e.ipc7_id AND d.EARLIEST_FILING_YEAR=e.EARLIEST_FILING_YEAR 
+	LEFT JOIN pethprx.t53_sample y
+	ON b.inv_fid=y.inv_fid AND e.inv_fid=y.inv_fid_
+	LEFT JOIN pethprx.t53_sample z
+	ON b.inv_fid_=z.inv_fid AND e.inv_fid=z.inv_fid_
+	WHERE y.inv_fid_ IS NULL AND z.inv_fid_ IS NULL);
+-- Remember: in t54_invipc, all inventors have e.inv_all_us=1 AND e.eth_comp=1
+-- The join with  pethprx.t55_invyear is to ensure the counterfactual node has also at least one patent 
+
+SELECT * FROM pethprx.t62_s2_cntr LIMIT 10;
+
+
+
 
 
 SELECT DISTINCT a.inv_fid, a.inv_fid_, a.EARLIEST_FILING_YEAR
@@ -879,7 +1206,7 @@ SELECT * FROM pethprx.t53_sample WHERE inv_fid=4014766;
 
 SELECT COUNT(*) FROM pethprx.t53_sample a WHERE a.ethnic_focal=1 AND a.inv_all_us=1 AND a.eth_comp=1;
 
-SELECT * FROM pethprx.t53_sample LIMIT 0,10;
+SELECT * FROM pethprx.t55_invyear LIMIT 0,10;
 SELECT * FROM pethprx.t54_invipc LIMIT 0,10;
 SELECT * FROM pethprx.t01_samples LIMIT 0,10;
 SELECT * FROM pethprx.t51_edir LIMIT 0,10;
