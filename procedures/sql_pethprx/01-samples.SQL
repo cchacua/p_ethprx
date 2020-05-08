@@ -783,8 +783,6 @@ Query OK, 4576352 rows affected (2 min 17,92 sec)
 Rows matched: 4576352  Changed: 4576352  Warnings: 0
 */
 
-
-
 --------------------------
 -- Table of of inventors, year and ipc codes for counterfactual
 DROP TABLE IF EXISTS pethprx.t54_invipc;
@@ -814,7 +812,8 @@ dg_c: degree centrality for the CTT sample, no matter geographical location, und
 dg_p: degree centrality for the PBOC sample, no matter geographical location, undirected measure (computed from one side of a directed network),  for the network between t-5 and t-1
 dg_c_10: degree centrality for the CTT sample, no matter geographical location, undirected measure (computed from one side of a directed network), for the network between t-10 and t-1
 dg_p_10: degree centrality for the PBOC sample, no matter geographical location, undirected measure (computed from one side of a directed network),  for the network between t-10 and t-1
-
+addr_id: Most common address in that year for every inv_fid (if multiple ones)
+addr_id_type: 1: only high quality addresses, 2: low quality, 3: unlocated
 Null values in degree measures are explained by non-collaborative patents (single-author patents)
 This table is relevant to identify the sample that includes inventors who have already patented
 -- ATTENTION: SEPARATE COUNTINGS BY SAMPLE
@@ -881,7 +880,7 @@ Query OK, 1211855 rows affected (4 min 33,71 sec)
 Rows matched: 1211855  Changed: 1211855  Warnings: 0
 */
 
--- Percentile distributions for each of the sectors, by year (the share correspond to the share by year)
+-- Percentile distributions for each field, by year (the share correspond to the share by year)
 ALTER TABLE pethprx.t55_invyear ADD COLUMN pc_c FLOAT, ADD COLUMN pc_p FLOAT,ADD COLUMN pc_c_10 FLOAT, ADD COLUMN pc_p_10 FLOAT;
 
 UPDATE pethprx.t55_invyear x
@@ -951,6 +950,98 @@ Query OK, 703612 rows affected (27,93 sec)
 Rows matched: 703612  Changed: 703612  Warnings: 0
 */
 
+-- Location by year
+--As in Riccaboni's geocoding does not provide a single coordinate point by address, I have to chosse a single location per year
+
+ALTER TABLE pethprx.t55_invyear ADD COLUMN id SERIAL FIRST, ADD COLUMN addr_id BIGINT UNSIGNED, ADD COLUMN addr_id_type INT UNSIGNED;
+
+WITH t1 AS (SELECT a.id, c.addr_id, COUNT(DISTINCT d.pat_id) AS npat
+	FROM pethprx.t55_invyear a
+	INNER JOIN riccaboni2017.t08_inv b
+	ON a.inv_fid=b.inv_fid
+	INNER JOIN riccaboni2017.t08 c
+	ON c.loctype='high' AND b.id=c.inv_id
+	INNER JOIN pethprx.t01_samples d
+	ON c.pat_id=d.pat_id AND a.EARLIEST_FILING_YEAR=d.EARLIEST_FILING_YEAR
+	GROUP BY a.id, c.addr_id)
+UPDATE pethprx.t55_invyear k 
+	INNER JOIN (
+	SELECT x.id, x.addr_id
+	FROM t1 x
+	LEFT JOIN t1 y
+	ON x.id = y.id AND (x.npat < y.npat OR (x.npat = y.npat AND x.addr_id<y.addr_id))
+	WHERE y.npat is NULL) l
+	ON k.id=l.id
+	SET k.addr_id=l.addr_id, k.addr_id_type=1;
+/*
+Query OK, 899841 rows affected (1 min 58,90 sec)
+Rows matched: 899841  Changed: 899841  Warnings: 0
+*/
+
+WITH t1 AS (SELECT a.id, c.addr_id, COUNT(DISTINCT d.pat_id) AS npat
+	FROM pethprx.t55_invyear a
+	INNER JOIN riccaboni2017.t08_inv b
+	ON a.addr_id IS NULL AND a.inv_fid=b.inv_fid
+	INNER JOIN riccaboni2017.t08 c
+	ON c.loctype IN ('high', 'low') AND b.id=c.inv_id
+	INNER JOIN pethprx.t01_samples d
+	ON c.pat_id=d.pat_id AND a.EARLIEST_FILING_YEAR=d.EARLIEST_FILING_YEAR
+	WHERE a.addr_id IS NULL
+	GROUP BY a.id, c.addr_id)
+UPDATE pethprx.t55_invyear k 
+	INNER JOIN (
+	SELECT x.id, x.addr_id
+	FROM t1 x
+	LEFT JOIN t1 y
+	ON x.id = y.id AND (x.npat < y.npat OR (x.npat = y.npat AND x.addr_id<y.addr_id))
+	WHERE y.npat is NULL) l
+	ON k.id=l.id
+	SET k.addr_id=l.addr_id, k.addr_id_type=2
+	WHERE k.addr_id IS NULL ;
+/*
+Query OK, 1723607 rows affected (5 min 35,04 sec)
+Rows matched: 1723607  Changed: 1723607  Warnings: 0
+*/
+
+
+WITH t1 AS (SELECT a.id, c.addr_id, COUNT(DISTINCT d.pat_id) AS npat
+	FROM pethprx.t55_invyear a
+	INNER JOIN riccaboni2017.t08_inv b
+	ON a.addr_id IS NULL AND a.inv_fid=b.inv_fid
+	INNER JOIN riccaboni2017.t08 c
+	ON b.id=c.inv_id
+	INNER JOIN pethprx.t01_samples d
+	ON c.pat_id=d.pat_id AND a.EARLIEST_FILING_YEAR=d.EARLIEST_FILING_YEAR
+	WHERE a.addr_id IS NULL
+	GROUP BY a.id, c.addr_id)
+UPDATE pethprx.t55_invyear k 
+	INNER JOIN (
+	SELECT x.id, x.addr_id
+	FROM t1 x
+	LEFT JOIN t1 y
+	ON x.id = y.id AND (x.npat < y.npat OR (x.npat = y.npat AND x.addr_id<y.addr_id))
+	WHERE y.npat is NULL) l
+	ON k.id=l.id
+	SET k.addr_id=l.addr_id, k.addr_id_type=3
+	WHERE k.addr_id IS NULL ;
+/*
+Query OK, 170660 rows affected (24,12 sec)
+Rows matched: 170660  Changed: 170660  Warnings: 0
+*/
+
+
+SELECT COUNT(*) FROM pethprx.t55_invyear WHERE addr_id IS NULL LIMIT 0,10;
+/*
++----------+
+| COUNT(*) |
++----------+
+|    83347 |
++----------+
+1 row in set (0,64 sec)
+There are still some inventors withouth add_id for some years
+*/
+SELECT * FROM pethprx.t55_invyear WHERE addr_id IS NULL LIMIT 0,10;
+
 SELECT * FROM pethprx.t55_invyear LIMIT 0,10;
 SELECT DISTINCT d.inv_fid, d.inv_fid_,  e.EARLIEST_FILING_YEAR, e.field
 	FROM pethprx.t51_edir d
@@ -965,7 +1056,6 @@ SELECT * FROM pethprx.t55_invyear WHERE pc_c>0.9 LIMIT 0,10;
 -- Counterfactual samples t6# 
 ---------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------
-
 
 --------------------------
 -- t61_s1 Sample 1
@@ -1154,7 +1244,9 @@ WHERE a.ethnic_focal=1 AND a.inv_all_us=1 AND a.eth_comp=1;
 Query OK, 26394 rows affected (16,96 sec)
 Records: 26394  Duplicates: 0  Warnings: 0
 
-Query OK, 36307 rows affected (17,73 sec)
+26394 when focal is at the top 10% of the t-10,t-1 degree distribution and the non-focal below the top 10% 
+36307 when focal is at the top 10% of the t-10,t-1 degree distribution and the non-focal can be at any position in the distibution
+36307 Query OK,  rows affected (17,73 sec)
 Records: 36307  Duplicates: 0  Warnings: 0
 */
 

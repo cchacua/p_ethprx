@@ -2,13 +2,14 @@
 ##                          ORDER OF THE PROCEDURES                          ##
 ###############################################################################
 
-Create and load on the MySQL server patstat2018b, riccaboni2017 and oecd_cit201907, and then execute:
-- get_applnid
+- Create and load on the MySQL server patstat2018b, riccaboni2017 and oecd_cit201907, following the customized loading scripts
+- Execute, if not already done, nationality/01-prepare_nationalities_file.R
+- Check that the conolidated and prepared files on geolocations and ethnicities are available at the input and output folders
 
-I need to modify's Riccaboni's schema:
-- table with unique addresses 
-- unique id info 
-- t08 will only be a linkage table
+Then execute over MySQL:
+- get_applnid
+- sql_pethprx
+
 
 ###############################################################################
 -- Create network with everything in Neo4J
