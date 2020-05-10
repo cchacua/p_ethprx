@@ -281,6 +281,17 @@ Rows matched: 4076456  Changed: 4076456  Warnings: 0
 ALTER TABLE pethprx.t10_samples ADD INDEX(ipc4_id);
 
 
+ALTER TABLE pethprx.t10_ipc7 ADD COLUMN ipc4_id BIGINT UNSIGNED AFTER class;
+UPDATE pethprx.t10_ipc7 a INNER JOIN pethprx.t10_ipc4 b 
+	ON LEFT(a.class, 4)=b.class
+	SET a.ipc4_id=b.id;
+/*
+Query OK, 5876 rows affected (0,24 sec)
+Rows matched: 5876  Changed: 5876  Warnings: 0
+*/
+
+ALTER TABLE pethprx.t10_ipc7 ADD INDEX(ipc4_id);
+
 SELECT * FROM pethprx.t10_samples LIMIT 10;
 
 ---------------------------------------------------------------------------------------------------
@@ -1057,6 +1068,48 @@ SELECT * FROM pethprx.t55_invyear WHERE pc_c>0.9 LIMIT 0,10;
 ---------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------
 
+ALTER TABLE pethprx.t54_invipc DROP COLUMN tyr, DROP COLUMN  pc_10 BOOL;
+
+
+-- Prepare table t54_invipc
+ALTER TABLE pethprx.t54_invipc ADD COLUMN tyr BOOL, ADD COLUMN  pc_10 BOOL;
+-- tyr: inventor active either on the field c or p, in the time window t-5 to t-1
+-- pc_10: Is inventor in the percentile 10%, computed in the time window t-10, t-1
+UPDATE pethprx.t54_invipc a
+	INNER JOIN pethprx.t55_invyear b
+	ON (b.tyr_c>0 OR b.tyr_p>0) AND a.inv_fid=b.inv_fid AND a.EARLIEST_FILING_YEAR=b.EARLIEST_FILING_YEAR 
+	SET a.tyr=1;
+/*
+Query OK, 2841064 rows affected (2 min 5,53 sec)
+Rows matched: 2841064  Changed: 2841064  Warnings: 0
+*/
+UPDATE pethprx.t54_invipc a
+	SET a.tyr=0
+	WHERE a.tyr IS NULL;
+/*
+Query OK, 2650130 rows affected (57,81 sec)
+Rows matched: 2650130  Changed: 2650130  Warnings: 0
+*/
+UPDATE pethprx.t54_invipc a
+	INNER JOIN pethprx.t55_invyear b
+	ON (b.tyr_c>0 OR b.tyr_p>0) AND (b.pc_c_10<0.9 OR b.pc_p_10<0.9) AND a.inv_fid=b.inv_fid 
+	AND a.EARLIEST_FILING_YEAR=b.EARLIEST_FILING_YEAR 
+	SET a.pc_10=0;
+/*
+Query OK, 2397894 rows affected (2 min 22,43 sec)
+Rows matched: 2397894  Changed: 2397894  Warnings: 0
+*/
+UPDATE pethprx.t54_invipc a
+	SET a.pc_10=1
+	WHERE a.pc_10 IS NULL;
+/*
+Query OK, 3093300 rows affected (2 min 35,50 sec)
+Rows matched: 3093300  Changed: 3093300  Warnings: 0
+
+*/
+
+SELECT pc_10, COUNT(*) FROM pethprx.t54_invipc GROUP BY pc_10 LIMIT 10;
+
 --------------------------
 -- t61_s1 Sample 1
 /*
@@ -1083,24 +1136,53 @@ Query OK, 1027815 rows affected (16,79 sec)
 Records: 1027815  Duplicates: 0  Warnings: 0
 */
 SELECT * FROM pethprx.t61_s1 LIMIT 10;
-UPDATE pethprx.t61_s1 a,
-	LATERAL(
-	SELECT h.inv_fid
-	FROM pethprx.t51_edir b
+
+WITH t1 AS (SELECT l.id, h.inv_fid
+	FROM (SELECT * FROM pethprx.t61_s1 LIMIT 100) l
+	INNER JOIN pethprx.t51_edir b
+	ON l.sample_id=b.sample_id
 	INNER JOIN pethprx.t01_samples d
-	ON b.pat_id=d.pat_id
+	ON d.inv_all_us=1 AND d.eth_comp=1 AND b.pat_id=d.pat_id
 	INNER JOIN pethprx.t10_samples c
 	ON d.pat_id=c.pat_id
 	INNER JOIN pethprx.t54_invipc h
-	ON c.ipc7_id=h.ipc7_id AND d.EARLIEST_FILING_YEAR=h.EARLIEST_FILING_YEAR 
+	ON c.ipc7_id=h.ipc7_id AND d.EARLIEST_FILING_YEAR=h.EARLIEST_FILING_YEAR
 	LEFT JOIN pethprx.t53_sample y
 	ON b.inv_fid=y.inv_fid AND h.inv_fid=y.inv_fid_
 	LEFT JOIN pethprx.t53_sample z
 	ON b.inv_fid_=z.inv_fid AND h.inv_fid=z.inv_fid_
-	WHERE a.sample_id=b.sample_id AND d.inv_all_us=1 AND d.eth_comp=1 AND y.inv_fid_ IS NULL AND z.inv_fid_ IS NULL
+	WHERE y.inv_fid_ IS NULL AND z.inv_fid_ IS NULL
+)
+UPDATE pethprx.t61_s1 aa, LATERAL(
+	SELECT m.inv_fid
+	FROM t1 m
+	WHERE aa.id=m.id
+	ORDER BY RAND()
 	LIMIT 1
 	) x
-	SET a.inv_fid__=x.inv_fid AND a.cntrf_round=1;
+	SET aa.inv_fid__=x.inv_fid, aa.cntrf_round=1;
+
+UPDATE pethprx.t61_s1 a,
+	LATERAL(
+	SELECT h.inv_fid
+	FROM (SELECT * FROM pethprx.t61_s1 LIMIT 100) l
+	INNER JOIN pethprx.t51_edir b
+	ON l.sample_id=b.sample_id
+	INNER JOIN pethprx.t01_samples d
+	ON d.inv_all_us=1 AND d.eth_comp=1 AND b.pat_id=d.pat_id
+	INNER JOIN pethprx.t10_samples c
+	ON d.pat_id=c.pat_id
+	INNER JOIN pethprx.t54_invipc h
+	ON c.ipc7_id=h.ipc7_id AND d.EARLIEST_FILING_YEAR=h.EARLIEST_FILING_YEAR
+	LEFT JOIN pethprx.t53_sample y
+	ON b.inv_fid=y.inv_fid AND h.inv_fid=y.inv_fid_
+	LEFT JOIN pethprx.t53_sample z
+	ON b.inv_fid_=z.inv_fid AND h.inv_fid=z.inv_fid_
+	WHERE a.sample_id=b.sample_id AND y.inv_fid_ IS NULL AND z.inv_fid_ IS NULL 
+	ORDER BY RAND()
+	LIMIT 1
+	) x
+	SET a.inv_fid__=x.inv_fid, a.cntrf_round=1;
 /*
 For getting the counterfactual node h:
 
@@ -1115,11 +1197,15 @@ When creating the final sample:
 
 -- https://dev.mysql.com/doc/refman/8.0/en/lateral-derived-tables.html
 -- https://jan.kneschke.de/projects/mysql/order-by-rand/
+https://federico-razzoli.com/how-to-return-random-rows-from-a-table
 */
 
 
-WITH t1 AS (SELECT l.id AS sample_id, h.inv_fid
-	FROM pethprx.t61_s1 l
+
+
+
+WITH t1 AS (SELECT ROW_NUMBER() OVER(PARTITION BY l.id) AS row_num, l.id AS sample_id, h.inv_fid
+	FROM (SELECT * FROM pethprx.t61_s1 LIMIT 100) l
 	INNER JOIN pethprx.t51_edir b
 	ON l.sample_id=b.sample_id
 	INNER JOIN pethprx.t01_samples d
@@ -1127,23 +1213,88 @@ WITH t1 AS (SELECT l.id AS sample_id, h.inv_fid
 	INNER JOIN pethprx.t10_samples c
 	ON d.pat_id=c.pat_id
 	INNER JOIN pethprx.t54_invipc h
-	ON c.ipc7_id=h.ipc7_id AND d.EARLIEST_FILING_YEAR=h.EARLIEST_FILING_YEAR 
+	ON c.ipc7_id=h.ipc7_id AND d.EARLIEST_FILING_YEAR=h.EARLIEST_FILING_YEAR
 	LEFT JOIN pethprx.t53_sample y
 	ON b.inv_fid=y.inv_fid AND h.inv_fid=y.inv_fid_
 	LEFT JOIN pethprx.t53_sample z
 	ON b.inv_fid_=z.inv_fid AND h.inv_fid=z.inv_fid_
 	WHERE y.inv_fid_ IS NULL AND z.inv_fid_ IS NULL
 )
-SELECT DISTINCT x.inv_fid AS inv_fid__
+SELECT DISTINCT a.id, x.inv_fid AS inv_fid__
 	FROM pethprx.t61_s1 a,
 	LATERAL(
 	SELECT m.inv_fid
 	FROM t1 m
-	WHERE a.id=m.sample_id 
+	WHERE a.id=m.sample_id
 	LIMIT 1
 	) x
-	LIMIT 30;
--- a.inv_fid, a.inv_fid_, a.EARLIEST_FILING_YEAR , 
+	LIMIT 100;
+-- a.inv_fid, a.inv_fid_, a.EARLIEST_FILING_YEAR ,
+
+	WITH t3 AS (	
+	SELECT row_num, m.inv_fid
+	FROM t1 m
+	WHERE a.id=m.sample_id)
+	SELECT xx.inv_fid
+	FROM t3 xx
+	JOIN (SELECT CEIL(RAND() * (SELECT MAX(row_num) FROM  t3)) AS row_num ) AS r2
+	USING (row_num)
+
+
+
+
+-- To select for a single row
+WITH t1 AS (SELECT ROW_NUMBER() OVER() AS row_num, l.id AS sample_id, h.inv_fid
+	FROM (SELECT * FROM pethprx.t61_s1 ww WHERE ww.id=1) l
+	INNER JOIN pethprx.t51_edir b
+	ON l.sample_id=b.sample_id
+	INNER JOIN pethprx.t01_samples d
+	ON d.inv_all_us=1 AND d.eth_comp=1 AND b.pat_id=d.pat_id
+	INNER JOIN pethprx.t10_samples c
+	ON d.pat_id=c.pat_id
+	INNER JOIN pethprx.t54_invipc h
+	ON c.ipc7_id=h.ipc7_id AND d.EARLIEST_FILING_YEAR=h.EARLIEST_FILING_YEAR
+	LEFT JOIN pethprx.t53_sample y
+	ON b.inv_fid=y.inv_fid AND h.inv_fid=y.inv_fid_
+	LEFT JOIN pethprx.t53_sample z
+	ON b.inv_fid_=z.inv_fid AND h.inv_fid=z.inv_fid_
+	WHERE y.inv_fid_ IS NULL AND z.inv_fid_ IS NULL
+)
+SELECT x.inv_fid
+	FROM t1 x
+	JOIN (SELECT CEIL(RAND() * (SELECT MAX(row_num) FROM  t1)) AS row_num ) AS r2
+	USING (row_num);
+
+
+WITH t1 AS (SELECT l.id AS sample_id, h.inv_fid
+	FROM (SELECT * FROM pethprx.t61_s1 LIMIT 100) l
+	INNER JOIN pethprx.t51_edir b
+	ON l.sample_id=b.sample_id
+	INNER JOIN pethprx.t01_samples d
+	ON d.inv_all_us=1 AND d.eth_comp=1 AND b.pat_id=d.pat_id
+	INNER JOIN pethprx.t10_samples c
+	ON d.pat_id=c.pat_id
+	INNER JOIN pethprx.t54_invipc h
+	ON c.ipc7_id=h.ipc7_id AND d.EARLIEST_FILING_YEAR=h.EARLIEST_FILING_YEAR
+	LEFT JOIN pethprx.t53_sample y
+	ON b.inv_fid=y.inv_fid AND h.inv_fid=y.inv_fid_
+	LEFT JOIN pethprx.t53_sample z
+	ON b.inv_fid_=z.inv_fid AND h.inv_fid=z.inv_fid_
+	WHERE y.inv_fid_ IS NULL AND z.inv_fid_ IS NULL
+)
+SELECT DISTINCT a.id, x.inv_fid AS inv_fid__
+	FROM pethprx.t61_s1 a,
+	LATERAL(
+	SELECT m.inv_fid
+	FROM t1 m
+	WHERE a.id=m.sample_id
+	ORDER BY RAND()
+	LIMIT 1
+	) x
+	LIMIT 100;
+
+
+
 
 --------------------------
 -- t62_s2 Sample 2
@@ -1179,35 +1330,249 @@ Query OK, 207660 rows affected (23,30 sec)
 Records: 207660  Duplicates: 0  Warnings: 0
 */
 
-
-DROP TABLE IF EXISTS pethprx.t62_s2_cntr;
-CREATE TABLE pethprx.t62_s2_cntr AS (
+-- Round 1 (run as a .sh script by groups of 50-100 rows)
 WITH t1 AS (
+	WITH t2 AS (
 	SELECT DISTINCT a.inv_fid, a.ipc7_id, a.EARLIEST_FILING_YEAR
 	FROM pethprx.t54_invipc a
-	INNER JOIN pethprx.t55_invyear b
-	ON (b.tyr_c>0 OR b.tyr_p>0) AND a.inv_fid=b.inv_fid AND a.EARLIEST_FILING_YEAR=b.EARLIEST_FILING_YEAR 
-	)
-SELECT DISTINCT l.id AS sample_id, e.inv_fid
-	FROM pethprx.t62_s2 l
+	WHERE a.tyr=1 
+	),
+	t3 AS (
+	WITH t4 AS (SELECT * FROM pethprx.t62_s2 LIMIT 0, 50)
+	SELECT DISTINCT a.id, b.inv_fid, b.inv_fid_, c.ipc7_id, d.EARLIEST_FILING_YEAR
+	FROM t4 a
 	INNER JOIN pethprx.t51_edir b
-	ON l.sample_id=b.sample_id
+	ON a.sample_id=b.sample_id
 	INNER JOIN pethprx.t01_samples d
 	ON b.pat_id=d.pat_id
 	INNER JOIN pethprx.t10_samples c
 	ON d.pat_id=c.pat_id
-	INNER JOIN t1 e
-	ON c.ipc7_id=e.ipc7_id AND d.EARLIEST_FILING_YEAR=e.EARLIEST_FILING_YEAR 
+	)	
+	SELECT DISTINCT l.id, e.inv_fid
+	FROM t3 l
+	INNER JOIN t2 e
+	ON l.EARLIEST_FILING_YEAR=e.EARLIEST_FILING_YEAR AND l.ipc7_id=e.ipc7_id
 	LEFT JOIN pethprx.t53_sample y
-	ON b.inv_fid=y.inv_fid AND e.inv_fid=y.inv_fid_
+	ON l.inv_fid=y.inv_fid AND e.inv_fid=y.inv_fid_
 	LEFT JOIN pethprx.t53_sample z
-	ON b.inv_fid_=z.inv_fid AND e.inv_fid=z.inv_fid_
-	WHERE y.inv_fid_ IS NULL AND z.inv_fid_ IS NULL);
+	ON l.inv_fid_=z.inv_fid AND e.inv_fid=z.inv_fid_
+	WHERE y.inv_fid_ IS NULL AND z.inv_fid_ IS NULL)
+UPDATE pethprx.t62_s2 aa
+	INNER JOIN LATERAL (
+	SELECT m.inv_fid
+	FROM t1 m
+	WHERE aa.id=m.id
+	ORDER BY RAND()
+	LIMIT 1
+	) x
+	ON TRUE
+	SET aa.inv_fid__=x.inv_fid, aa.cntrf_round=1;
+/*
+Query OK, 100 rows affected (16,30 sec)
+Rows matched: 100  Changed: 100  Warnings: 0
+*/
+
+-- Round 2: to correct 61 rows for which I couldn't find a counterfactual in IPC7, so find it at IPC4
+WITH t1 AS (
+	WITH t2 AS (
+	SELECT DISTINCT a.inv_fid, g.ipc4_id, a.EARLIEST_FILING_YEAR
+	FROM pethprx.t54_invipc a
+	INNER JOIN pethprx.t10_ipc7 g
+	ON a.ipc7_id=g.id
+	WHERE a.tyr=1 
+	),
+	t3 AS (
+	WITH t4 AS (SELECT * FROM pethprx.t62_s2 WHERE inv_fid__=1 LIMIT 80)
+	SELECT DISTINCT a.id, b.inv_fid, b.inv_fid_, c.ipc4_id, d.EARLIEST_FILING_YEAR
+	FROM t4 a
+	INNER JOIN pethprx.t51_edir b
+	ON a.sample_id=b.sample_id
+	INNER JOIN pethprx.t01_samples d
+	ON b.pat_id=d.pat_id
+	INNER JOIN pethprx.t10_samples c
+	ON d.pat_id=c.pat_id
+	)	
+	SELECT DISTINCT l.id, e.inv_fid
+	FROM t3 l
+	INNER JOIN t2 e
+	ON l.EARLIEST_FILING_YEAR=e.EARLIEST_FILING_YEAR AND l.ipc4_id=e.ipc4_id
+	LEFT JOIN pethprx.t53_sample y
+	ON l.inv_fid=y.inv_fid AND e.inv_fid=y.inv_fid_
+	LEFT JOIN pethprx.t53_sample z
+	ON l.inv_fid_=z.inv_fid AND e.inv_fid=z.inv_fid_
+	WHERE y.inv_fid_ IS NULL AND z.inv_fid_ IS NULL)
+UPDATE pethprx.t62_s2 aa
+	INNER JOIN LATERAL (
+	SELECT m.inv_fid
+	FROM t1 m
+	WHERE aa.id=m.id
+	ORDER BY RAND()
+	LIMIT 1
+	) x
+	ON TRUE
+	SET aa.inv_fid__=x.inv_fid, aa.cntrf_round=2;
+/*
+Query OK, 61 rows affected (12,03 sec)
+Rows matched: 61  Changed: 61  Warnings: 0
+*/
+
+
+-- Delete repeated counterfactuals
+WITH t3 AS (
+WITH t2 AS (
+WITH t1 AS (
+SELECT LEAST(a.inv_fid, b.inv_fid__) AS inv_fid_f, GREATEST(a.inv_fid, b.inv_fid__) AS inv_fid__f, a.EARLIEST_FILING_YEAR, COUNT(DISTINCT b.id) AS ncount
+FROM pethprx.t53_sample a
+INNER JOIN pethprx.t62_s2 b
+ON a.id=b.sample_id
+GROUP BY inv_fid_f, inv_fid__f, a.EARLIEST_FILING_YEAR
+HAVING ncount>1
+ORDER BY ncount DESC)
+SELECT b.id, a.inv_fid, b.inv_fid__, c.ncount
+	FROM pethprx.t53_sample a
+	INNER JOIN pethprx.t62_s2 b
+	ON a.id=b.sample_id
+	INNER JOIN t1 c
+	ON LEAST(a.inv_fid, b.inv_fid__)=c.inv_fid_f AND GREATEST(a.inv_fid, b.inv_fid__)=c.inv_fid__f)
+SELECT DISTINCT x.id
+	FROM t2 x
+	LEFT JOIN t2 y
+	ON x.inv_fid=y.inv_fid AND x.inv_fid__=y.inv_fid__ AND x.id<y.id
+	WHERE y.id IS NOT NULL)
+UPDATE pethprx.t62_s2 aa
+	INNER JOIN t3 bb
+	ON aa.id=bb.id
+	SET aa.inv_fid__=NULL, aa.cntrf_round=NULL;
+/*
+Query OK, 366 rows affected (23,88 sec)
+Rows matched: 366  Changed: 366  Warnings: 0
+*/
+
+-- Run again for assign new values to repeated ones
+WITH t1 AS (
+	WITH t2 AS (
+	SELECT DISTINCT a.inv_fid, a.ipc7_id, a.EARLIEST_FILING_YEAR
+	FROM pethprx.t54_invipc a
+	WHERE a.tyr=1 
+	),
+	t3 AS (
+	WITH t4 AS (SELECT * FROM pethprx.t62_s2 WHERE inv_fid__ IS NULL LIMIT 100)
+	SELECT DISTINCT a.id, b.inv_fid, b.inv_fid_, c.ipc7_id, d.EARLIEST_FILING_YEAR
+	FROM t4 a
+	INNER JOIN pethprx.t51_edir b
+	ON a.sample_id=b.sample_id
+	INNER JOIN pethprx.t01_samples d
+	ON b.pat_id=d.pat_id
+	INNER JOIN pethprx.t10_samples c
+	ON d.pat_id=c.pat_id
+	),
+	t5 AS (
+	SELECT DISTINCT a.inv_fid, b.inv_fid__ AS inv_fid_
+	FROM pethprx.t53_sample a
+	INNER JOIN pethprx.t62_s2 b
+	ON a.id=b.sample_id
+	WHERE b.inv_fid__ IS NOT NULL
+	)	
+	SELECT DISTINCT l.id, e.inv_fid
+	FROM t3 l
+	INNER JOIN t2 e
+	ON l.EARLIEST_FILING_YEAR=e.EARLIEST_FILING_YEAR AND l.ipc7_id=e.ipc7_id
+	LEFT JOIN pethprx.t53_sample y
+	ON l.inv_fid=y.inv_fid AND e.inv_fid=y.inv_fid_
+	LEFT JOIN pethprx.t53_sample z
+	ON l.inv_fid_=z.inv_fid AND e.inv_fid=z.inv_fid_
+	LEFT JOIN t5 yy 
+	ON l.inv_fid=yy.inv_fid AND e.inv_fid=yy.inv_fid_
+	WHERE y.inv_fid_ IS NULL AND z.inv_fid_ IS NULL AND yy.inv_fid_ IS NULL)
+UPDATE pethprx.t62_s2 aa
+	INNER JOIN LATERAL (
+	SELECT m.inv_fid
+	FROM t1 m
+	WHERE aa.id=m.id
+	ORDER BY RAND()
+	LIMIT 1
+	) x
+	ON TRUE
+	SET aa.inv_fid__=x.inv_fid, aa.cntrf_round=3;
+/*
+Loop delete and update batch as many times as necessary and when there are not more rows that can be updated, move to IPC4
+*/
+
+-- Do matching using IPC4
+WITH t1 AS (
+	WITH t2 AS (
+	SELECT DISTINCT a.inv_fid, g.ipc4_id, a.EARLIEST_FILING_YEAR
+	FROM pethprx.t54_invipc a
+	INNER JOIN pethprx.t10_ipc7 g
+	ON a.ipc7_id=g.id
+	WHERE a.tyr=1 
+	),
+	t3 AS (
+	WITH t4 AS (SELECT * FROM pethprx.t62_s2 WHERE inv_fid__ IS NULL LIMIT 100)
+	SELECT DISTINCT a.id, b.inv_fid, b.inv_fid_, c.ipc4_id, d.EARLIEST_FILING_YEAR
+	FROM t4 a
+	INNER JOIN pethprx.t51_edir b
+	ON a.sample_id=b.sample_id
+	INNER JOIN pethprx.t01_samples d
+	ON b.pat_id=d.pat_id
+	INNER JOIN pethprx.t10_samples c
+	ON d.pat_id=c.pat_id
+	),
+	t5 AS (
+	SELECT DISTINCT a.inv_fid, b.inv_fid__ AS inv_fid_
+	FROM pethprx.t53_sample a
+	INNER JOIN pethprx.t62_s2 b
+	ON a.id=b.sample_id
+	WHERE b.inv_fid__ IS NOT NULL
+	)	
+	SELECT DISTINCT l.id, e.inv_fid
+	FROM t3 l
+	INNER JOIN t2 e
+	ON l.EARLIEST_FILING_YEAR=e.EARLIEST_FILING_YEAR AND l.ipc4_id=e.ipc4_id
+	LEFT JOIN pethprx.t53_sample y
+	ON l.inv_fid=y.inv_fid AND e.inv_fid=y.inv_fid_
+	LEFT JOIN pethprx.t53_sample z
+	ON l.inv_fid_=z.inv_fid AND e.inv_fid=z.inv_fid_
+	LEFT JOIN t5 yy 
+	ON l.inv_fid=yy.inv_fid AND e.inv_fid=yy.inv_fid_
+	WHERE y.inv_fid_ IS NULL AND z.inv_fid_ IS NULL AND yy.inv_fid_ IS NULL)
+UPDATE pethprx.t62_s2 aa
+	INNER JOIN LATERAL (
+	SELECT m.inv_fid
+	FROM t1 m
+	WHERE aa.id=m.id
+	ORDER BY RAND()
+	LIMIT 1
+	) x
+	ON TRUE
+	SET aa.inv_fid__=x.inv_fid, aa.cntrf_round=4;
+/*
+Query OK, 13 rows affected (12,70 sec)
+Rows matched: 13  Changed: 13  Warnings: 0
+*/
+
+SELECT SUM(ncount) FROM (
+SELECT LEAST(a.inv_fid, b.inv_fid__) AS inv_fid_f, GREATEST(a.inv_fid, b.inv_fid__) AS inv_fid__f, a.EARLIEST_FILING_YEAR, COUNT(DISTINCT b.id) AS ncount
+FROM pethprx.t53_sample a
+INNER JOIN pethprx.t62_s2 b
+ON a.id=b.sample_id
+GROUP BY inv_fid_f, inv_fid__f, a.EARLIEST_FILING_YEAR
+HAVING ncount>1
+ORDER BY ncount DESC) a
+LIMIT 100;
+
+
+SELECT inv_fid__, COUNT(*) FROM pethprx.t62_s2 GROUP BY inv_fid__ ORDER BY COUNT(*) DESC LIMIT 10;
+
+SELECT * FROM pethprx.t62_s2 WHERE inv_fid__=1 LIMIT 100;
+SELECT * FROM pethprx.t53_sample WHERE EARLIEST_FILING_YEAR IS NULL LIMIT 0,10;
+
 -- Remember: in t54_invipc, all inventors have e.inv_all_us=1 AND e.eth_comp=1
 -- The join with  pethprx.t55_invyear is to ensure the counterfactual node has also at least one patent 
 
-SELECT * FROM pethprx.t62_s2_cntr LIMIT 10;
-
+SELECT * FROM pethprx.t62_s2 LIMIT 10;
+SELECT * FROM pethprx.t53_sample LIMIT 10;
+SELECT * FROM pethprx.t10_samples LIMIT 10;
 
 --------------------------
 -- t63_s3 Sample 3
@@ -1251,36 +1616,129 @@ Records: 36307  Duplicates: 0  Warnings: 0
 */
 
 
-DROP TABLE IF EXISTS pethprx.t63_s3_cntr;
-CREATE TABLE pethprx.t63_s3_cntr AS (
 WITH t1 AS (
+	WITH t2 AS (
 	SELECT DISTINCT a.inv_fid, a.ipc7_id, a.EARLIEST_FILING_YEAR
 	FROM pethprx.t54_invipc a
-	INNER JOIN pethprx.t55_invyear b
-	ON (b.tyr_c>0 OR b.tyr_p>0) AND (b.pc_c_10<0.9 OR b.pc_p_10<0.9) AND a.inv_fid=b.inv_fid AND a.EARLIEST_FILING_YEAR=b.EARLIEST_FILING_YEAR 
-	)
-SELECT DISTINCT l.id AS sample_id, e.inv_fid
-	FROM pethprx.t63_s3 l
+	WHERE a.pc_10=0 
+	)	
+	SELECT DISTINCT l.id, e.inv_fid
+	FROM (SELECT * FROM pethprx.t63_s3 LIMIT 101, 100) l
 	INNER JOIN pethprx.t51_edir b
 	ON l.sample_id=b.sample_id
 	INNER JOIN pethprx.t01_samples d
 	ON b.pat_id=d.pat_id
 	INNER JOIN pethprx.t10_samples c
 	ON d.pat_id=c.pat_id
-	INNER JOIN t1 e
+	INNER JOIN t2 e
 	ON c.ipc7_id=e.ipc7_id AND d.EARLIEST_FILING_YEAR=e.EARLIEST_FILING_YEAR 
 	LEFT JOIN pethprx.t53_sample y
 	ON b.inv_fid=y.inv_fid AND e.inv_fid=y.inv_fid_
 	LEFT JOIN pethprx.t53_sample z
 	ON b.inv_fid_=z.inv_fid AND e.inv_fid=z.inv_fid_
-	WHERE y.inv_fid_ IS NULL AND z.inv_fid_ IS NULL);
+	WHERE y.inv_fid_ IS NULL AND z.inv_fid_ IS NULL)
+UPDATE pethprx.t63_s3 aa, LATERAL(
+	SELECT m.inv_fid
+	FROM t1 m
+	WHERE aa.id=m.id
+	ORDER BY RAND()
+	LIMIT 1
+	) x
+	SET aa.inv_fid__=x.inv_fid, aa.cntrf_round=1;
+
+
 -- Remember: in t54_invipc, all inventors have e.inv_all_us=1 AND e.eth_comp=1
 -- The join with  pethprx.t55_invyear is to ensure the counterfactual node has also at least one patent 
 
-SELECT * FROM pethprx.t62_s2_cntr LIMIT 10;
+-- Delete repeated counterfactuals
+WITH t3 AS (
+WITH t2 AS (
+WITH t1 AS (
+SELECT LEAST(a.inv_fid, b.inv_fid__) AS inv_fid_f, GREATEST(a.inv_fid, b.inv_fid__) AS inv_fid__f, a.EARLIEST_FILING_YEAR, COUNT(DISTINCT b.id) AS ncount
+FROM pethprx.t53_sample a
+INNER JOIN pethprx.t63_s3 b
+ON a.id=b.sample_id
+GROUP BY inv_fid_f, inv_fid__f, a.EARLIEST_FILING_YEAR
+HAVING ncount>1
+ORDER BY ncount DESC)
+SELECT b.id, a.inv_fid, b.inv_fid__, c.ncount
+	FROM pethprx.t53_sample a
+	INNER JOIN pethprx.t63_s3 b
+	ON a.id=b.sample_id
+	INNER JOIN t1 c
+	ON LEAST(a.inv_fid, b.inv_fid__)=c.inv_fid_f AND GREATEST(a.inv_fid, b.inv_fid__)=c.inv_fid__f)
+SELECT DISTINCT x.id
+	FROM t2 x
+	LEFT JOIN t2 y
+	ON x.inv_fid=y.inv_fid AND x.inv_fid__=y.inv_fid__ AND x.id<y.id
+	WHERE y.id IS NOT NULL)
+UPDATE pethprx.t63_s3 aa
+	INNER JOIN t3 bb
+	ON aa.id=bb.id
+	SET aa.inv_fid__=NULL, aa.cntrf_round=NULL;
+/*
+Query OK, 36 rows affected (21,15 sec)
+Rows matched: 36  Changed: 36  Warnings: 0
+*/
+
+-- Run again for assign new values to repeated ones
+WITH t1 AS (
+	WITH t2 AS (
+	SELECT DISTINCT a.inv_fid, a.ipc7_id, a.EARLIEST_FILING_YEAR
+	FROM pethprx.t54_invipc a
+	WHERE a.pc_10=1 
+	),
+	t3 AS (
+	WITH t4 AS (SELECT * FROM pethprx.t63_s3 WHERE inv_fid__ IS NULL)
+	SELECT DISTINCT a.id, b.inv_fid, b.inv_fid_, c.ipc7_id, d.EARLIEST_FILING_YEAR
+	FROM t4 a
+	INNER JOIN pethprx.t51_edir b
+	ON a.sample_id=b.sample_id
+	INNER JOIN pethprx.t01_samples d
+	ON b.pat_id=d.pat_id
+	INNER JOIN pethprx.t10_samples c
+	ON d.pat_id=c.pat_id
+	),
+	t5 AS (
+	SELECT DISTINCT a.inv_fid, b.inv_fid__ AS inv_fid_
+	FROM pethprx.t53_sample a
+	INNER JOIN pethprx.t63_s3 b
+	ON a.id=b.sample_id
+	WHERE b.inv_fid__ IS NOT NULL
+	)	
+	SELECT DISTINCT l.id, e.inv_fid
+	FROM t3 l
+	INNER JOIN t2 e
+	ON l.EARLIEST_FILING_YEAR=e.EARLIEST_FILING_YEAR AND l.ipc7_id=e.ipc7_id
+	LEFT JOIN pethprx.t53_sample y
+	ON l.inv_fid=y.inv_fid AND e.inv_fid=y.inv_fid_
+	LEFT JOIN pethprx.t53_sample z
+	ON l.inv_fid_=z.inv_fid AND e.inv_fid=z.inv_fid_
+	LEFT JOIN t5 yy 
+	ON l.inv_fid=yy.inv_fid AND e.inv_fid=yy.inv_fid_
+	WHERE y.inv_fid_ IS NULL AND z.inv_fid_ IS NULL AND yy.inv_fid_ IS NULL)
+UPDATE pethprx.t63_s3 aa
+	INNER JOIN LATERAL (
+	SELECT m.inv_fid
+	FROM t1 m
+	WHERE aa.id=m.id
+	ORDER BY RAND()
+	LIMIT 1
+	) x
+	ON TRUE
+	SET aa.inv_fid__=x.inv_fid, aa.cntrf_round=3;
+/*
+Query OK, 36 rows affected (15,87 sec)
+Rows matched: 36  Changed: 36  Warnings: 0
+*/
+
+-- And run again the delete repeated values to check (in this case there were not more repeated values, so it was fine)
 
 
+SELECT * FROM pethprx.t63_s3 LIMIT 98, 10;
 
+
+SELECT inv_fid__, COUNT(*) FROM pethprx.t63_s3 GROUP BY inv_fid__ ORDER BY COUNT(*) DESC LIMIT 10;
 
 
 SELECT DISTINCT a.inv_fid, a.inv_fid_, a.EARLIEST_FILING_YEAR
