@@ -1561,7 +1561,7 @@ HAVING ncount>1
 ORDER BY ncount DESC) a
 LIMIT 100;
 
-
+SELECT COUNT(*) FROM pethprx.t62_s2 WHERE inv_fid__ IS NULL;
 SELECT inv_fid__, COUNT(*) FROM pethprx.t62_s2 GROUP BY inv_fid__ ORDER BY COUNT(*) DESC LIMIT 10;
 
 SELECT * FROM pethprx.t62_s2 WHERE inv_fid__=1 LIMIT 100;
@@ -1681,12 +1681,17 @@ Query OK, 36 rows affected (21,15 sec)
 Rows matched: 36  Changed: 36  Warnings: 0
 */
 
+UPDATE pethprx.t63_s3 aa
+	SET aa.inv_fid__=NULL, aa.cntrf_round=NULL
+	WHERE aa.cntrf_round=3;
+
+
 -- Run again for assign new values to repeated ones
 WITH t1 AS (
 	WITH t2 AS (
 	SELECT DISTINCT a.inv_fid, a.ipc7_id, a.EARLIEST_FILING_YEAR
 	FROM pethprx.t54_invipc a
-	WHERE a.pc_10=1 
+	WHERE a.pc_10=0 
 	),
 	t3 AS (
 	WITH t4 AS (SELECT * FROM pethprx.t63_s3 WHERE inv_fid__ IS NULL)
@@ -1732,48 +1737,327 @@ Query OK, 36 rows affected (15,87 sec)
 Rows matched: 36  Changed: 36  Warnings: 0
 */
 
+
+-- Do matching using IPC4
+WITH t1 AS (
+	WITH t2 AS (
+	SELECT DISTINCT a.inv_fid, g.ipc4_id, a.EARLIEST_FILING_YEAR
+	FROM pethprx.t54_invipc a
+	INNER JOIN pethprx.t10_ipc7 g
+	ON a.ipc7_id=g.id
+	WHERE a.pc_10=0
+	),
+	t3 AS (
+	WITH t4 AS (SELECT * FROM pethprx.t63_s3 WHERE inv_fid__ IS NULL LIMIT 100)
+	SELECT DISTINCT a.id, b.inv_fid, b.inv_fid_, c.ipc4_id, d.EARLIEST_FILING_YEAR
+	FROM t4 a
+	INNER JOIN pethprx.t51_edir b
+	ON a.sample_id=b.sample_id
+	INNER JOIN pethprx.t01_samples d
+	ON b.pat_id=d.pat_id
+	INNER JOIN pethprx.t10_samples c
+	ON d.pat_id=c.pat_id
+	),
+	t5 AS (
+	SELECT DISTINCT a.inv_fid, b.inv_fid__ AS inv_fid_
+	FROM pethprx.t53_sample a
+	INNER JOIN pethprx.t63_s3 b
+	ON a.id=b.sample_id
+	WHERE b.inv_fid__ IS NOT NULL
+	)	
+	SELECT DISTINCT l.id, e.inv_fid
+	FROM t3 l
+	INNER JOIN t2 e
+	ON l.EARLIEST_FILING_YEAR=e.EARLIEST_FILING_YEAR AND l.ipc4_id=e.ipc4_id
+	LEFT JOIN pethprx.t53_sample y
+	ON l.inv_fid=y.inv_fid AND e.inv_fid=y.inv_fid_
+	LEFT JOIN pethprx.t53_sample z
+	ON l.inv_fid_=z.inv_fid AND e.inv_fid=z.inv_fid_
+	LEFT JOIN t5 yy 
+	ON l.inv_fid=yy.inv_fid AND e.inv_fid=yy.inv_fid_
+	WHERE y.inv_fid_ IS NULL AND z.inv_fid_ IS NULL AND yy.inv_fid_ IS NULL)
+UPDATE pethprx.t63_s3 aa
+	INNER JOIN LATERAL (
+	SELECT m.inv_fid
+	FROM t1 m
+	WHERE aa.id=m.id
+	ORDER BY RAND()
+	LIMIT 1
+	) x
+	ON TRUE
+	SET aa.inv_fid__=x.inv_fid, aa.cntrf_round=4;
+/*
+Query OK, 2 rows affected (9,88 sec)
+Rows matched: 2  Changed: 2  Warnings: 0
+*/
+
+SELECT COUNT(*) FROM pethprx.t63_s3 WHERE inv_fid__ IS NULL;
+
+
 -- And run again the delete repeated values to check (in this case there were not more repeated values, so it was fine)
 
+-- Insert counterfactual undirected links into t52_eudir to create eudir ids. In principle, all rows from t63_s3 should appear in t52_eudir 
+INSERT INTO pethprx.t52_eudir (inv_fid, inv_fid_, EARLIEST_FILING_YEAR, cntrf)
+WITH t1 AS (
+SELECT DISTINCT LEAST(a.inv_fid, b.inv_fid__) AS inv_fid, GREATEST(a.inv_fid, b.inv_fid__) AS inv_fid_, a.EARLIEST_FILING_YEAR
+FROM pethprx.t53_sample a
+INNER JOIN pethprx.t63_s3 b
+ON a.id=b.sample_id
+)
+SELECT a.inv_fid, a.inv_fid_ , a.EARLIEST_FILING_YEAR, 1
+	FROM t1 a
+	LEFT JOIN pethprx.t52_eudir b
+	ON a.inv_fid=b.inv_fid AND a.inv_fid_=b.inv_fid_ AND a.EARLIEST_FILING_YEAR=b.EARLIEST_FILING_YEAR
+	WHERE b.inv_fid IS NULL OR b.inv_fid_ IS NULL OR b.EARLIEST_FILING_YEAR IS NULL;
+/*
+Query OK, 26394 rows affected (3,84 sec)
+Records: 26394  Duplicates: 0  Warnings: 0
+*/
+
+ALTER TABLE pethprx.t63_s3 ADD COLUMN eudir_id BIGINT UNSIGNED;
+UPDATE pethprx.t63_s3 x
+	INNER JOIN pethprx.t53_sample a
+	ON x.sample_id=a.id
+	INNER JOIN pethprx.t52_eudir b
+	ON LEAST(a.inv_fid, x.inv_fid__)=b.inv_fid AND GREATEST(a.inv_fid, x.inv_fid__)=b.inv_fid_ AND a.EARLIEST_FILING_YEAR=b.EARLIEST_FILING_YEAR
+	SET x.eudir_id=b.id
+	WHERE b.cntrf=1;
+/*
+Query OK, 26394 rows affected (0,99 sec)
+Rows matched: 26394  Changed: 26394  Warnings: 0
+*/
+ALTER TABLE pethprx.t63_s3 ADD INDEX(eudir_id);
+
+SELECT * FROM pethprx.t63_s3 WHERE eudir_id IS NULL LIMIT 10;
+
+SELECT a.* 
+	FROM pethprx.t63_s3 x
+	INNER JOIN pethprx.t53_sample a
+	ON x.sample_id=a.id
+	WHERE x.eudir_id IS NULL LIMIT 10;
 
 SELECT * FROM pethprx.t63_s3 LIMIT 98, 10;
-
-
 SELECT inv_fid__, COUNT(*) FROM pethprx.t63_s3 GROUP BY inv_fid__ ORDER BY COUNT(*) DESC LIMIT 10;
 
+--------------------------
+-- t73_s3c Sample 3 ready to run regressions 
+/*
+Attention: Here the relevant variable is collaborations
+*/
+DROP TABLE IF EXISTS pethprx.t73_s3c;
+CREATE TABLE pethprx.t73_s3c AS 
+SELECT DISTINCT 1 AS linked, b.eudir_id, NULL AS eudir_id_cc, c.inv_fid, c.inv_fid_, c.EARLIEST_FILING_YEAR
+FROM pethprx.t63_s3 a
+INNER JOIN pethprx.t53_sample  b
+ON a.sample_id=b.id
+INNER JOIN pethprx.t55_invyear d
+ON d.tyr_c>0 AND d.pc_c_10>=0.9 AND b.inv_fid=d.inv_fid AND b.EARLIEST_FILING_YEAR=d.EARLIEST_FILING_YEAR 
+INNER JOIN  pethprx.t52_eudir c
+ON b.eudir_id=c.id
+UNION
+SELECT DISTINCT 0 AS linked, c.id AS eudir_id, b.eudir_id AS eudir_id_cc, c.inv_fid, c.inv_fid_, c.EARLIEST_FILING_YEAR 
+FROM pethprx.t63_s3 a
+INNER JOIN pethprx.t53_sample  b
+ON a.sample_id=b.id
+INNER JOIN pethprx.t55_invyear d
+ON d.tyr_c>0 AND d.pc_c_10>=0.9 AND b.inv_fid=d.inv_fid AND b.EARLIEST_FILING_YEAR=d.EARLIEST_FILING_YEAR
+INNER JOIN  pethprx.t52_eudir c
+ON a.eudir_id=c.id;
+/*
+Query OK, 20273 rows affected (1,91 sec)
+Records: 20273  Duplicates: 0  Warnings: 0
+*/
+ALTER TABLE pethprx.t73_s3c ADD INDEX(eudir_id);
+ALTER TABLE pethprx.t73_s3c ADD INDEX(eudir_id_cc);
+ALTER TABLE pethprx.t73_s3c ADD INDEX(inv_fid);
+ALTER TABLE pethprx.t73_s3c ADD INDEX(inv_fid_);
+ALTER TABLE pethprx.t73_s3c ADD INDEX(EARLIEST_FILING_YEAR);
 
-SELECT DISTINCT a.inv_fid, a.inv_fid_, a.EARLIEST_FILING_YEAR
-	FROM pethprx.t53_sample a
-	INNER JOIN pethprx.t51_edir b
-	ON a.id=b.sample_id
-	INNER JOIN pethprx.t10_samples c
-	ON b.pat_id=c.pat_id
-	WHERE a.ethnic_focal=1 and a.inv_all_us=1 and a.eth_comp=1
-	LIMIT 30;
+ALTER TABLE pethprx.t73_s3c
+	ADD COLUMN id SERIAL FIRST,
+	ADD COLUMN ethnic BOOL, 
+	ADD COLUMN socialdist INT,
+	ADD COLUMN av_cent FLOAT,
+	ADD COLUMN absdif_cent INT,
+	ADD COLUMN geodis FLOAT,
+	ADD COLUMN insprox BOOL,
+	ADD COLUMN techprox BOOL,
+	ADD COLUMN same_appl BOOL,
+	ADD COLUMN same_msa BOOL;
 
-SELECT * FROM pethprx.t53_sample WHERE inv_fid=50063;
-SELECT * FROM pethprx.t53_sample WHERE inv_fid=4014766;
+-- av_cent, absdif_cent, geodis
+UPDATE pethprx.t73_s3c a
+	INNER JOIN pethprx.t55_invyear b
+	ON a.inv_fid=b.inv_fid AND a.EARLIEST_FILING_YEAR=b.EARLIEST_FILING_YEAR
+	INNER JOIN riccaboni2017.t20_addr f
+	ON b.addr_id=f.id
+	INNER JOIN pethprx.t55_invyear c
+	ON a.inv_fid_=c.inv_fid AND a.EARLIEST_FILING_YEAR=c.EARLIEST_FILING_YEAR
+	INNER JOIN riccaboni2017.t20_addr g
+	ON c.addr_id=g.id
+	SET a.av_cent=((b.dg_c+c.dg_c)/2), a.absdif_cent=ABS(CAST(b.dg_c AS SIGNED)-CAST(c.dg_c AS SIGNED)), a.geodis=ST_Distance(f.geom, g.geom);
+/*
+Query OK, 20273 rows affected (2,29 sec)
+Rows matched: 20273  Changed: 20273  Warnings: 0
+*/
+
+-- Ethnic
+UPDATE pethprx.t73_s3c a
+	INNER JOIN pethprx.t30_inv_name b
+	ON a.inv_fid=b.inv_fid
+	INNER JOIN pethprx.t30_inv_name c
+	ON a.inv_fid_=c.inv_fid
+SET a.ethnic=1
+WHERE b.celgr_id_max=c.celgr_id_max;
+/*
+Query OK, 2457 rows affected (0,26 sec)
+Rows matched: 2457  Changed: 2457  Warnings: 0
+*/
+
+UPDATE pethprx.t73_s3c a
+	INNER JOIN pethprx.t30_inv_name b
+	ON a.inv_fid=b.inv_fid
+	INNER JOIN pethprx.t30_inv_name c
+	ON a.inv_fid_=c.inv_fid
+SET a.ethnic=0
+WHERE b.celgr_id_max!=c.celgr_id_max;
+/*
+Query OK, 17816 rows affected (0,50 sec)
+Rows matched: 17816  Changed: 17816  Warnings: 0
+*/
+
+-- Institutional
+/*
+TO DO:
+Clean categories in the future
++---------------------------+----------+
+| PSN_SECTOR                | COUNT(*) |
++---------------------------+----------+
+| COMPANY                   |   233760 |
+| INDIVIDUAL                |     2712 |
+| UNIVERSITY                |     3456 |
+| GOV NON-PROFIT            |      822 |
+| COMPANY GOV NON-PROFIT    |      178 |
+| HOSPITAL                  |       64 |
+| GOV NON-PROFIT UNIVERSITY |       20 |
++---------------------------+----------+
+7 rows in set (9,88 sec)
+*/
+WITH t1 AS (
+	WITH t2 AS (
+	SELECT DISTINCT inv_fid, EARLIEST_FILING_YEAR FROM pethprx.t73_s3c
+	UNION	
+	SELECT DISTINCT inv_fid_  AS inv_fid, EARLIEST_FILING_YEAR FROM pethprx.t73_s3c
+	)
+	SELECT DISTINCT a.inv_fid, a.EARLIEST_FILING_YEAR, f.PSN_SECTOR
+	FROM t2 a
+	INNER JOIN pethprx.t50_id_pat b
+	ON a.inv_fid=b.inv_fid
+	INNER JOIN pethprx.t01_samples c
+	ON b.pat_id=c.pat_id AND (CAST(a.EARLIEST_FILING_YEAR AS SIGNED)-CAST(c.EARLIEST_FILING_YEAR AS SIGNED)) BETWEEN 1 AND 5
+	INNER JOIN patstat2018b.TLS201_APPLN d
+	ON c.appln_id=d.appln_id
+	INNER JOIN patstat2018b.TLS207_PERS_APPLN e
+	ON d.appln_id=e.appln_id AND e.APPLT_SEQ_NR>0 AND e.INVT_SEQ_NR=0 
+	INNER JOIN patstat2018b.TLS206_PERSON f
+	ON e.PERSON_ID=f.PERSON_ID AND f.PSN_SECTOR NOT IN ('', 'UNKNOWN', 'INDIVIDUAL')
+	)
+UPDATE pethprx.t73_s3c x
+	INNER JOIN t1 y
+	ON x.inv_fid=y.inv_fid AND x.EARLIEST_FILING_YEAR=y.EARLIEST_FILING_YEAR
+	INNER JOIN t1 z
+	ON x.inv_fid_=z.inv_fid AND x.EARLIEST_FILING_YEAR=z.EARLIEST_FILING_YEAR AND y.PSN_SECTOR=z.PSN_SECTOR
+SET x.insprox=1;
+/*
+Query OK, 19571 rows affected (9,79 sec)
+Rows matched: 19571  Changed: 19571  Warnings: 0
+*/
+
+UPDATE pethprx.t73_s3c x
+SET x.insprox=0
+WHERE x.insprox IS NULL;
+/*
+Query OK, 702 rows affected (0,06 sec)
+Rows matched: 702  Changed: 702  Warnings: 0
+*/
+
+-- Technological
+WITH t1 AS (
+	WITH t2 AS (
+	SELECT DISTINCT inv_fid, EARLIEST_FILING_YEAR FROM pethprx.t73_s3c
+	UNION	
+	SELECT DISTINCT inv_fid_  AS inv_fid, EARLIEST_FILING_YEAR FROM pethprx.t73_s3c
+	)
+	SELECT DISTINCT a.inv_fid, a.EARLIEST_FILING_YEAR, d.ipc7_id
+	FROM t2 a
+	INNER JOIN pethprx.t50_id_pat b
+	ON a.inv_fid=b.inv_fid
+	INNER JOIN pethprx.t01_samples c
+	ON b.pat_id=c.pat_id AND (CAST(a.EARLIEST_FILING_YEAR AS SIGNED)-CAST(c.EARLIEST_FILING_YEAR AS SIGNED)) BETWEEN 1 AND 5
+	INNER JOIN pethprx.t10_samples d
+	ON c.pat_id=d.pat_id
+	)
+UPDATE pethprx.t73_s3c x
+	INNER JOIN t1 y
+	ON x.inv_fid=y.inv_fid AND x.EARLIEST_FILING_YEAR=y.EARLIEST_FILING_YEAR
+	INNER JOIN t1 z
+	ON x.inv_fid_=z.inv_fid AND x.EARLIEST_FILING_YEAR=z.EARLIEST_FILING_YEAR AND y.ipc7_id=z.ipc7_id
+SET x.techprox=1;
+/*
+Query OK, 15762 rows affected (16,10 sec)
+Rows matched: 15762  Changed: 15762  Warnings: 0
+*/
+
+UPDATE pethprx.t73_s3c x
+SET x.techprox=0
+WHERE x.techprox IS NULL;
+/*
+Query OK, 4511 rows affected (0,13 sec)
+Rows matched: 4511  Changed: 4511  Warnings: 0
+*/
+
+-- Same applicant
+WITH t1 AS (
+	WITH t2 AS (
+	SELECT DISTINCT inv_fid, EARLIEST_FILING_YEAR FROM pethprx.t73_s3c
+	UNION	
+	SELECT DISTINCT inv_fid_  AS inv_fid, EARLIEST_FILING_YEAR FROM pethprx.t73_s3c
+	)
+	SELECT DISTINCT a.inv_fid, a.EARLIEST_FILING_YEAR, d.app_id
+	FROM t2 a
+	INNER JOIN pethprx.t50_id_pat b
+	ON a.inv_fid=b.inv_fid
+	INNER JOIN pethprx.t01_samples c
+	ON b.pat_id=c.pat_id AND (CAST(a.EARLIEST_FILING_YEAR AS SIGNED)-CAST(c.EARLIEST_FILING_YEAR AS SIGNED)) BETWEEN 1 AND 5
+	INNER JOIN riccaboni2017.t07 d
+	ON c.pat_id=d.pat_id
+	)
+UPDATE pethprx.t73_s3c x
+	INNER JOIN t1 y
+	ON x.inv_fid=y.inv_fid AND x.EARLIEST_FILING_YEAR=y.EARLIEST_FILING_YEAR
+	INNER JOIN t1 z
+	ON x.inv_fid_=z.inv_fid AND x.EARLIEST_FILING_YEAR=z.EARLIEST_FILING_YEAR AND y.app_id=z.app_id
+SET x.same_appl=1;
+/*
+Query OK, 9640 rows affected (9,40 sec)
+Rows matched: 9640  Changed: 9640  Warnings: 0
+*/
+
+UPDATE pethprx.t73_s3c x
+SET x.same_appl=0
+WHERE x.same_appl IS NULL;
+/*
+Query OK, 10633 rows affected (0,18 sec)
+Rows matched: 10633  Changed: 10633  Warnings: 0
+*/
 
 
-SELECT COUNT(*) FROM pethprx.t53_sample a WHERE a.ethnic_focal=1 AND a.inv_all_us=1 AND a.eth_comp=1;
-
-SELECT * FROM pethprx.t55_invyear LIMIT 0,10;
-SELECT * FROM pethprx.t54_invipc LIMIT 0,10;
-SELECT * FROM pethprx.t01_samples LIMIT 0,10;
-SELECT * FROM pethprx.t51_edir LIMIT 0,10;
+SELECT linked, COUNT(*) FROM pethprx.t73_s3c GROUP BY linked; 
+SELECT * FROM pethprx.t73_s3c LIMIT 0,10;
 
 SHOW INDEX FROM pethprx.t54_invipc;
 
-ALTER TABLE pethprx.t51_edir ADD INDEX(sample_id);
 
--- Main table for the link inventor patent or year
--- At the level of final ID
--- One address per link
--- I take the list from t51_edir, as they are supposed to have collaborated with anyone else
-	-- EXPAND IPC codes
-	-- JOIN USING IPC AND YEAR ANOTHER NODE IN THE SAME FIELD
-	-- LEFT JOIN ON t52_eudir during specific time window and keep only null (links not present)
--- inv_fid->t08 to get pat_id ->t01_sample-to get pat_id and years (on both conditions) -> with that patent list: comparisons
--- Counterfactual for everysingle node no matter if they are ethnic?
 ---------------------------------------------------------------------------------------------------
 
 mysqldump -u root -p pethprx > '/mnt/hdd2/repositories/christian/p_ethprx/dbdump/pethprx-202005052002.sql'
