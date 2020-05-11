@@ -631,8 +631,6 @@ inv_fid  Minimun inv_fid between the pair ij, so min(i,j)
 inv_fid_ Maximum inv_fid between the pair ij, so max(i,j)
 EARLIEST_FILING_YEAR 
 cntrf Counterfactual link? 1 yes, 0: no, so real id
-
--- This can be joined with the directed links table, but it may not be necessary
 */
 DROP TABLE IF EXISTS pethprx.t52_eudir;
 CREATE TABLE pethprx.t52_eudir (
@@ -658,7 +656,18 @@ Query OK, 5237244 rows affected (5 min 9,62 sec)
 Records: 5237244  Duplicates: 0  Warnings: 0
 */
 
+ALTER TABLE pethprx.t51_edir ADD COLUMN eudir_id BIGINT UNSIGNED AFTER pat_id;
+UPDATE pethprx.t51_edir a 
+	INNER JOIN pethprx.t01_samples c
+	ON a.pat_id=c.pat_id
+	INNER JOIN pethprx.t52_eudir b
+	ON LEAST(a.inv_fid, a.inv_fid_)=b.inv_fid AND GREATEST(a.inv_fid, a.inv_fid_)= b.inv_fid_ AND c.EARLIEST_FILING_YEAR=b.EARLIEST_FILING_YEAR
+	SET a.eudir_id=b.id
+	WHERE cntrf=0;
+
+
 --------------------------
+-- t53_sample
 -- Table of directed edges, first collaborations ever with the columns: all inventors in the US and focal inventor is ethnic
 /*
 id
@@ -2051,6 +2060,10 @@ Query OK, 10633 rows affected (0,18 sec)
 Rows matched: 10633  Changed: 10633  Warnings: 0
 */
 
+
+-- https://stackoverflow.com/questions/2370876/find-path-between-nodes-with-sql
+-- https://stackoverflow.com/questions/59506079/mysql-shortest-path-between-two-nodes
+-- https://stackoverflow.com/questions/45933491/path-finding-via-sql-query
 
 SELECT linked, COUNT(*) FROM pethprx.t73_s3c GROUP BY linked; 
 SELECT * FROM pethprx.t73_s3c LIMIT 0,10;
