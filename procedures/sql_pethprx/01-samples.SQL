@@ -2310,6 +2310,94 @@ Query OK, 22795 rows affected (3,15 sec)
 */
 
 
+DROP TABLE IF EXISTS pethprx.t20_addr_us_msa;
+CREATE TABLE IF NOT EXISTS pethprx.t20_addr_us_msa
+(
+  `addr_id` bigint unsigned,
+  `loc` varchar(25),
+  `lat` double,
+  `lon` double,
+gid_0 CHAR(3),
+name_0 VARCHAR(200),
+gid_1 VARCHAR(20),
+name_1 VARCHAR(200),
+state VARCHAR(200),
+msa INT UNSIGNED
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+
+ALTER TABLE pethprx.t20_addr_us_msa ADD INDEX(addr_id);
+ALTER TABLE pethprx.t20_addr_us_msa ADD INDEX(msa);
+ALTER TABLE pethprx.t20_addr_us_msa ADD INDEX(gid_1);
+ALTER TABLE pethprx.t20_addr_us_msa ADD INDEX(state);
+
+
+LOAD DATA LOCAL INFILE '/mnt/hdd2/repositories/christian/p_ethprx/input/ernest_addr_id_state_msa.csv' INTO TABLE pethprx.t20_addr_us_msa
+FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"'  ESCAPED BY ''
+lines terminated by '\n'
+IGNORE 1 LINES ;
+SHOW WARNINGS;
+/*
+Query OK, 22795 rows affected, 460 warnings (0,78 sec)
+Records: 22795  Deleted: 0  Skipped: 0  Warnings: 460
+*/
+
+ALTER TABLE pethprx.t73_s3c
+	ADD COLUMN same_state BOOL;
+
+-- same_msa, same_state
+UPDATE pethprx.t73_s3c a
+	INNER JOIN pethprx.t55_invyear b
+	ON a.inv_fid=b.inv_fid AND a.EARLIEST_FILING_YEAR=b.EARLIEST_FILING_YEAR
+	INNER JOIN pethprx.t20_addr_us_msa f
+	ON b.addr_id=f.addr_id
+	INNER JOIN pethprx.t55_invyear c
+	ON a.inv_fid_=c.inv_fid AND a.EARLIEST_FILING_YEAR=c.EARLIEST_FILING_YEAR
+	INNER JOIN pethprx.t20_addr_us_msa g
+	ON c.addr_id=g.addr_id
+	SET a.same_msa=1
+	WHERE f.msa=g.msa;
+/*
+Query OK, 7905 rows affected (1,17 sec)
+Rows matched: 7905  Changed: 7905  Warnings: 0
+*/
+
+UPDATE pethprx.t73_s3c a
+	SET a.same_msa=0
+	WHERE a.same_msa IS NULL;
+/*
+Query OK, 12368 rows affected (0,28 sec)
+Rows matched: 12368  Changed: 12368  Warnings: 0
+*/
+
+UPDATE pethprx.t73_s3c a
+	INNER JOIN pethprx.t55_invyear b
+	ON a.inv_fid=b.inv_fid AND a.EARLIEST_FILING_YEAR=b.EARLIEST_FILING_YEAR
+	INNER JOIN pethprx.t20_addr_us_msa f
+	ON b.addr_id=f.addr_id
+	INNER JOIN pethprx.t55_invyear c
+	ON a.inv_fid_=c.inv_fid AND a.EARLIEST_FILING_YEAR=c.EARLIEST_FILING_YEAR
+	INNER JOIN pethprx.t20_addr_us_msa g
+	ON c.addr_id=g.addr_id
+	SET a.same_state=1
+	WHERE f.state=g.state;
+/*
+Query OK, 9902 rows affected (1,18 sec)
+Rows matched: 9902  Changed: 9902  Warnings: 0
+*/
+
+UPDATE pethprx.t73_s3c a
+	SET a.same_state=0
+	WHERE a.same_state IS NULL;
+/*
+Query OK, 10371 rows affected (0,23 sec)
+Rows matched: 10371  Changed: 10371  Warnings: 0
+*/
+
+
+
+SELECT * FROM pethprx.t20_addr_us_msa LIMIT 0,10;
+
+
 SELECT COUNT(*) FROM pethprx.t73_s3c; 
 SELECT linked, COUNT(*) FROM pethprx.t73_s3c GROUP BY linked; 
 SELECT * FROM pethprx.t73_s3c_sd LIMIT 0,10;
@@ -2319,5 +2407,5 @@ SHOW INDEX FROM pethprx.t54_invipc;
 
 ---------------------------------------------------------------------------------------------------
 
-mysqldump -u root -p pethprx > '/mnt/hdd2/repositories/christian/p_ethprx/dbdump/pethprx-202005052002.sql'
+mysqldump -u root -p pethprx > '/mnt/hdd2/repositories/christian/p_ethprx/dbdump/pethprx-202005120957.sql'
 mysqldump -u root -p riccaboni2017 > '/mnt/hdd2/repositories/christian/p_ethprx/dbdump/riccaboni2017-202005052002.sql'

@@ -222,22 +222,26 @@ ALTER TABLE pethprx.t73_s3p_sd ADD INDEX(inv_fid);
 ALTER TABLE pethprx.t73_s3p_sd ADD INDEX(inv_fid_);
 ALTER TABLE pethprx.t73_s3p_sd ADD INDEX(EARLIEST_FILING_YEAR);
 
-LOAD DATA LOCAL INFILE '/mnt/hdd2/repositories/christian/p_ethprx/output/graphs/distance_list/c_list.csv' INTO TABLE pethprx.t73_s3p_sd
+
+
+LOAD DATA LOCAL INFILE '/mnt/hdd2/repositories/christian/p_ethprx/output/graphs/distance_list/p/.csv' INTO TABLE pethprx.t73_s3p_sd
 FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"'  ESCAPED BY ''
 lines terminated by '\n'
 IGNORE 1 LINES ;
 SHOW WARNINGS;
 /*
-Query OK, 5722198 rows affected (21,34 sec)
-Records: 5722198  Deleted: 0  Skipped: 0  Warnings: 0
+
 */
+
+SELECT * FROM pethprx.t73_s3p_sd LIMIT 0,10;
+
 UPDATE pethprx.t73_s3p x
 	INNER JOIN pethprx.t73_s3p_sd y
 	ON x.inv_fid=y.inv_fid AND x.inv_fid_=y.inv_fid_ AND x.EARLIEST_FILING_YEAR=y.EARLIEST_FILING_YEAR
 SET x.socialdist=y.socialdist;
 /*
-Query OK, 13623 rows affected (44,04 sec)
-Rows matched: 13623  Changed: 13623  Warnings: 0
+Query OK, 26801 rows affected (2 min 41,11 sec)
+Rows matched: 26801  Changed: 26801  Warnings: 0
 */
 
 UPDATE pethprx.t73_s3p x
@@ -245,15 +249,15 @@ UPDATE pethprx.t73_s3p x
 	ON x.inv_fid=y.inv_fid_ AND x.inv_fid_=y.inv_fid AND x.EARLIEST_FILING_YEAR=y.EARLIEST_FILING_YEAR
 SET x.socialdist=y.socialdist;
 /*
-Query OK, 0 rows affected (42,55 sec)
-Rows matched: 1080  Changed: 0  Warnings: 0
+Query OK, 0 rows affected (1 min 49,56 sec)
+Rows matched: 4325  Changed: 0  Warnings: 0
 */
 
 UPDATE pethprx.t73_s3p x
 SET x.socialdist=999 WHERE x.socialdist IS NULL;
 /*
-Query OK, 6650 rows affected (0,11 sec)
-Rows matched: 6650  Changed: 6650  Warnings: 0
+Query OK, 6205 rows affected (0,26 sec)
+Rows matched: 6205  Changed: 6205  Warnings: 0
 */
 
 ALTER TABLE pethprx.t73_s3p
@@ -377,4 +381,55 @@ Query OK, 33006 rows affected (0,78 sec)
 Rows matched: 33006  Changed: 33006  Warnings: 0
 */
 
+ALTER TABLE pethprx.t73_s3p
+	ADD COLUMN same_state BOOL;
+
+-- same_msa, same_state
+UPDATE pethprx.t73_s3p a
+	INNER JOIN pethprx.t55_invyear b
+	ON a.inv_fid=b.inv_fid AND a.EARLIEST_FILING_YEAR=b.EARLIEST_FILING_YEAR
+	INNER JOIN pethprx.t20_addr_us_msa f
+	ON b.addr_id=f.addr_id
+	INNER JOIN pethprx.t55_invyear c
+	ON a.inv_fid_=c.inv_fid AND a.EARLIEST_FILING_YEAR=c.EARLIEST_FILING_YEAR
+	INNER JOIN pethprx.t20_addr_us_msa g
+	ON c.addr_id=g.addr_id
+	SET a.same_msa=1
+	WHERE f.msa=g.msa;
+/*
+Query OK, 10877 rows affected (1,81 sec)
+Rows matched: 10877  Changed: 10877  Warnings: 0
+*/
+
+UPDATE pethprx.t73_s3p a
+	SET a.same_msa=0
+	WHERE a.same_msa IS NULL;
+/*
+Query OK, 22129 rows affected (0,40 sec)
+Rows matched: 22129  Changed: 22129  Warnings: 0
+*/
+
+UPDATE pethprx.t73_s3p a
+	INNER JOIN pethprx.t55_invyear b
+	ON a.inv_fid=b.inv_fid AND a.EARLIEST_FILING_YEAR=b.EARLIEST_FILING_YEAR
+	INNER JOIN pethprx.t20_addr_us_msa f
+	ON b.addr_id=f.addr_id
+	INNER JOIN pethprx.t55_invyear c
+	ON a.inv_fid_=c.inv_fid AND a.EARLIEST_FILING_YEAR=c.EARLIEST_FILING_YEAR
+	INNER JOIN pethprx.t20_addr_us_msa g
+	ON c.addr_id=g.addr_id
+	SET a.same_state=1
+	WHERE f.state=g.state;
+/*
+Query OK, 15141 rows affected (1,92 sec)
+Rows matched: 15141  Changed: 15141  Warnings: 0
+*/
+
+UPDATE pethprx.t73_s3p a
+	SET a.same_state=0
+	WHERE a.same_state IS NULL;
+/*
+Query OK, 17865 rows affected (0,38 sec)
+Rows matched: 17865  Changed: 17865  Warnings: 0
+*/
 
