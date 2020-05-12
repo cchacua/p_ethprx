@@ -12,16 +12,16 @@ lapply(ynumbers, ugraphinv_dis, sector="p")
 # ugraphinv_dis_bulk(2005, sector="c") 
 
 
-# Merge multiple files
-merge.csv = function(mypath){
-  filenames=list.files(path=mypath, full.names=TRUE)
-  datalist = lapply(filenames, read.csv, stringsAsFactors = FALSE)
-  datalist = do.call("rbind", datalist)  
-  datalist<-unique(datalist)
-  #datalist[datalist== ""] <- NA
-  datalist
-}
-
-
-socialdis_ctt<-merge.csv("../output/graphs/distance_list/c/")
-fwrite(socialdis_ctt, "../output/graphs/distance_list/c_list", ".csv")
+# Merge multiple files (takes too much ram)
+# merge.csv = function(mypath){
+#   filenames=list.files(path=mypath, full.names=TRUE)
+#   datalist = lapply(filenames, read.csv, stringsAsFactors = FALSE)
+#   datalist = do.call("rbind", datalist)  
+#   datalist<-unique(datalist)
+#   #datalist[datalist== ""] <- NA
+#   datalist
+# }
+# 
+# 
+# socialdis_ctt<-merge.csv("../output/graphs/distance_list/c/")
+# fwrite(socialdis_ctt, "../output/graphs/distance_list/c_list.csv")

@@ -312,7 +312,8 @@ finalid_nameinfo.csv
 DROP TABLE IF EXISTS pethprx.t39_celgr;
 CREATE TABLE pethprx.t39_celgr (
 id INT UNSIGNED PRIMARY KEY,
-celgr_text VARCHAR(100)
+celgr_text VARCHAR(100),
+label VARCHAR(100)
 );
 
 LOAD DATA LOCAL INFILE '/mnt/hdd2/repositories/christian/p_ethprx/output/celgroups.csv' INTO TABLE pethprx.t39_celgr
@@ -972,8 +973,17 @@ Rows matched: 703612  Changed: 703612  Warnings: 0
 
 -- Location by year
 --As in Riccaboni's geocoding does not provide a single coordinate point by address, I have to chosse a single location per year
+-- I only choose the location if all the team was inside the US
 
 ALTER TABLE pethprx.t55_invyear ADD COLUMN id SERIAL FIRST, ADD COLUMN addr_id BIGINT UNSIGNED, ADD COLUMN addr_id_type INT UNSIGNED;
+
+
+UPDATE pethprx.t55_invyear k 
+	SET k.addr_id=NULL;
+/*
+Query OK, 2710761 rows affected (43,58 sec)
+Rows matched: 2794108  Changed: 2710761  Warnings: 0
+*/
 
 WITH t1 AS (SELECT a.id, c.addr_id, COUNT(DISTINCT d.pat_id) AS npat
 	FROM pethprx.t55_invyear a
@@ -982,7 +992,7 @@ WITH t1 AS (SELECT a.id, c.addr_id, COUNT(DISTINCT d.pat_id) AS npat
 	INNER JOIN riccaboni2017.t08 c
 	ON c.loctype='high' AND b.id=c.inv_id
 	INNER JOIN pethprx.t01_samples d
-	ON c.pat_id=d.pat_id AND a.EARLIEST_FILING_YEAR=d.EARLIEST_FILING_YEAR
+	ON c.pat_id=d.pat_id AND a.EARLIEST_FILING_YEAR=d.EARLIEST_FILING_YEAR AND d.inv_all_us=1
 	GROUP BY a.id, c.addr_id)
 UPDATE pethprx.t55_invyear k 
 	INNER JOIN (
@@ -994,6 +1004,10 @@ UPDATE pethprx.t55_invyear k
 	ON k.id=l.id
 	SET k.addr_id=l.addr_id, k.addr_id_type=1;
 /*
+Query OK, 397198 rows affected (1 min 38,90 sec)
+Rows matched: 397198  Changed: 397198  Warnings: 0
+
+
 Query OK, 899841 rows affected (1 min 58,90 sec)
 Rows matched: 899841  Changed: 899841  Warnings: 0
 */
@@ -1005,7 +1019,7 @@ WITH t1 AS (SELECT a.id, c.addr_id, COUNT(DISTINCT d.pat_id) AS npat
 	INNER JOIN riccaboni2017.t08 c
 	ON c.loctype IN ('high', 'low') AND b.id=c.inv_id
 	INNER JOIN pethprx.t01_samples d
-	ON c.pat_id=d.pat_id AND a.EARLIEST_FILING_YEAR=d.EARLIEST_FILING_YEAR
+	ON c.pat_id=d.pat_id AND a.EARLIEST_FILING_YEAR=d.EARLIEST_FILING_YEAR AND d.inv_all_us=1
 	WHERE a.addr_id IS NULL
 	GROUP BY a.id, c.addr_id)
 UPDATE pethprx.t55_invyear k 
@@ -1019,6 +1033,11 @@ UPDATE pethprx.t55_invyear k
 	SET k.addr_id=l.addr_id, k.addr_id_type=2
 	WHERE k.addr_id IS NULL ;
 /*
+Query OK, 683001 rows affected (6 min 59,23 sec)
+Rows matched: 683001  Changed: 683001  Warnings: 0
+
+
+
 Query OK, 1723607 rows affected (5 min 35,04 sec)
 Rows matched: 1723607  Changed: 1723607  Warnings: 0
 */
@@ -1031,7 +1050,7 @@ WITH t1 AS (SELECT a.id, c.addr_id, COUNT(DISTINCT d.pat_id) AS npat
 	INNER JOIN riccaboni2017.t08 c
 	ON b.id=c.inv_id
 	INNER JOIN pethprx.t01_samples d
-	ON c.pat_id=d.pat_id AND a.EARLIEST_FILING_YEAR=d.EARLIEST_FILING_YEAR
+	ON c.pat_id=d.pat_id AND a.EARLIEST_FILING_YEAR=d.EARLIEST_FILING_YEAR AND d.inv_all_us=1
 	WHERE a.addr_id IS NULL
 	GROUP BY a.id, c.addr_id)
 UPDATE pethprx.t55_invyear k 
@@ -1045,6 +1064,10 @@ UPDATE pethprx.t55_invyear k
 	SET k.addr_id=l.addr_id, k.addr_id_type=3
 	WHERE k.addr_id IS NULL ;
 /*
+Query OK, 3901 rows affected (4 min 54,29 sec)
+Rows matched: 3901  Changed: 3901  Warnings: 0
+
+
 Query OK, 170660 rows affected (24,12 sec)
 Rows matched: 170660  Changed: 170660  Warnings: 0
 */
@@ -1910,14 +1933,34 @@ Query OK, 20273 rows affected (2,29 sec)
 Rows matched: 20273  Changed: 20273  Warnings: 0
 */
 
+UPDATE pethprx.t73_s3c a
+	SET a.geodis=NULL;
+UPDATE pethprx.t73_s3c a
+	INNER JOIN pethprx.t55_invyear b
+	ON a.inv_fid=b.inv_fid AND a.EARLIEST_FILING_YEAR=b.EARLIEST_FILING_YEAR
+	INNER JOIN riccaboni2017.t20_addr f
+	ON b.addr_id=f.id
+	INNER JOIN pethprx.t55_invyear c
+	ON a.inv_fid_=c.inv_fid AND a.EARLIEST_FILING_YEAR=c.EARLIEST_FILING_YEAR
+	INNER JOIN riccaboni2017.t20_addr g
+	ON c.addr_id=g.id
+	SET a.geodis=ST_Distance(f.geom, g.geom);
+/*
+Query OK, 20273 rows affected (4,10 sec)
+Rows matched: 20273  Changed: 20273  Warnings: 0
+*/
+
 -- Ethnic
+UPDATE pethprx.t73_s3c a
+SET a.ethnic=NULL;
+
 UPDATE pethprx.t73_s3c a
 	INNER JOIN pethprx.t30_inv_name b
 	ON a.inv_fid=b.inv_fid
 	INNER JOIN pethprx.t30_inv_name c
 	ON a.inv_fid_=c.inv_fid
 SET a.ethnic=1
-WHERE b.celgr_id_max=c.celgr_id_max;
+WHERE b.celgr_id_max=c.celgr_id_max AND b.celgr_id_max IN (3, 8, 10, 17, 23, 26, 27, 28, 29, 36, 38, 39);
 /*
 Query OK, 2457 rows affected (0,26 sec)
 Rows matched: 2457  Changed: 2457  Warnings: 0
@@ -2061,13 +2104,216 @@ Rows matched: 10633  Changed: 10633  Warnings: 0
 */
 
 
+-- Social distance
 -- https://stackoverflow.com/questions/2370876/find-path-between-nodes-with-sql
 -- https://stackoverflow.com/questions/59506079/mysql-shortest-path-between-two-nodes
 -- https://stackoverflow.com/questions/45933491/path-finding-via-sql-query
+DROP TABLE IF EXISTS pethprx.t73_s3c_sd;
+CREATE TABLE IF NOT EXISTS pethprx.t73_s3c_sd
+(
+inv_fid BIGINT UNSIGNED,
+inv_fid_ BIGINT UNSIGNED,
+socialdist INT,
+EARLIEST_FILING_YEAR INT
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+ALTER TABLE pethprx.t73_s3c_sd ADD INDEX(inv_fid);
+ALTER TABLE pethprx.t73_s3c_sd ADD INDEX(inv_fid_);
+ALTER TABLE pethprx.t73_s3c_sd ADD INDEX(EARLIEST_FILING_YEAR);
 
+LOAD DATA LOCAL INFILE '/mnt/hdd2/repositories/christian/p_ethprx/output/graphs/distance_list/c_list.csv' INTO TABLE pethprx.t73_s3c_sd
+FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"'  ESCAPED BY ''
+lines terminated by '\n'
+IGNORE 1 LINES ;
+SHOW WARNINGS;
+/*
+Query OK, 5722198 rows affected (21,34 sec)
+Records: 5722198  Deleted: 0  Skipped: 0  Warnings: 0
+*/
+UPDATE pethprx.t73_s3c x
+	INNER JOIN pethprx.t73_s3c_sd y
+	ON x.inv_fid=y.inv_fid AND x.inv_fid_=y.inv_fid_ AND x.EARLIEST_FILING_YEAR=y.EARLIEST_FILING_YEAR
+SET x.socialdist=y.socialdist;
+/*
+Query OK, 13623 rows affected (44,04 sec)
+Rows matched: 13623  Changed: 13623  Warnings: 0
+*/
+
+UPDATE pethprx.t73_s3c x
+	INNER JOIN pethprx.t73_s3c_sd y
+	ON x.inv_fid=y.inv_fid_ AND x.inv_fid_=y.inv_fid AND x.EARLIEST_FILING_YEAR=y.EARLIEST_FILING_YEAR
+SET x.socialdist=y.socialdist;
+/*
+Query OK, 0 rows affected (42,55 sec)
+Rows matched: 1080  Changed: 0  Warnings: 0
+*/
+
+UPDATE pethprx.t73_s3c x
+SET x.socialdist=999 WHERE x.socialdist IS NULL;
+/*
+Query OK, 6650 rows affected (0,11 sec)
+Rows matched: 6650  Changed: 6650  Warnings: 0
+*/
+
+ALTER TABLE pethprx.t73_s3c
+	ADD COLUMN soc_2 BOOL,
+	ADD COLUMN soc_3 BOOL,
+	ADD COLUMN soc_4 BOOL,
+	ADD COLUMN soc_5m BOOL;
+
+UPDATE pethprx.t73_s3c x
+SET x.soc_2=1 WHERE x.socialdist=2;
+
+UPDATE pethprx.t73_s3c x
+SET x.soc_3=1 WHERE x.socialdist=3;
+
+UPDATE pethprx.t73_s3c x
+SET x.soc_4=1 WHERE x.socialdist=4;
+
+UPDATE pethprx.t73_s3c x
+SET x.soc_5m=1 WHERE x.socialdist>4;
+
+UPDATE pethprx.t73_s3c x
+SET x.soc_2=0 WHERE x.socialdist!=2;
+
+UPDATE pethprx.t73_s3c x
+SET x.soc_3=0 WHERE x.socialdist!=3;
+
+UPDATE pethprx.t73_s3c x
+SET x.soc_4=0 WHERE x.socialdist!=4;
+
+UPDATE pethprx.t73_s3c x
+SET x.soc_5m=0 WHERE x.socialdist<4;
+
+/*
+mysql> UPDATE pethprx.t73_s3c x
+    -> SET x.soc_2=1 WHERE x.socialdist=2;
+Query OK, 3623 rows affected (0,10 sec)
+Rows matched: 3623  Changed: 3623  Warnings: 0
+
+mysql>
+mysql> UPDATE pethprx.t73_s3c x
+    -> SET x.soc_3=1 WHERE x.socialdist=3;
+Query OK, 1793 rows affected (0,05 sec)
+Rows matched: 1793  Changed: 1793  Warnings: 0
+
+UPDATE pethprx.t73_s3c x
+SET x.soc_4=1 WHERE x.socialdist=4;
+Query OK, 1229 rows affected (0,05 sec)
+Rows matched: 1229  Changed: 1229  Warnings: 0
+
+mysql>
+mysql> UPDATE pethprx.t73_s3c x
+    -> SET x.soc_5m=1 WHERE x.socialdist>4;
+Query OK, 13628 rows affected (0,25 sec)
+Rows matched: 13628  Changed: 13628  Warnings: 0
+
+mysql> UPDATE pethprx.t73_s3c x
+    -> SET x.soc_2=0 WHERE x.socialdist!=2;
+Query OK, 16650 rows affected (0,28 sec)
+Rows matched: 16650  Changed: 16650  Warnings: 0
+
+mysql>
+mysql> UPDATE pethprx.t73_s3c x
+    -> SET x.soc_3=0 WHERE x.socialdist!=3;
+Query OK, 18480 rows affected (0,32 sec)
+Rows matched: 18480  Changed: 18480  Warnings: 0
+
+mysql>
+mysql> UPDATE pethprx.t73_s3c x
+    -> SET x.soc_4=0 WHERE x.socialdist!=4;
+Query OK, 19044 rows affected (0,32 sec)
+Rows matched: 19044  Changed: 19044  Warnings: 0
+
+mysql>
+mysql> UPDATE pethprx.t73_s3c x
+    -> SET x.soc_5m=0 WHERE x.socialdist<4;
+Query OK, 5416 rows affected (0,12 sec)
+Rows matched: 5416  Changed: 5416  Warnings: 0
+*/
+
+ALTER TABLE pethprx.t73_s3c
+	ADD COLUMN fcfinv BIGINT UNSIGNED,
+	ADD COLUMN celgr_id_max_fcfinv INT UNSIGNED;
+
+
+UPDATE pethprx.t73_s3c a
+SET a.fcfinv=NULL;
+UPDATE pethprx.t73_s3c b
+	INNER JOIN pethprx.t55_invyear d
+	ON d.tyr_c>0 AND d.pc_c_10>=0.9 AND b.inv_fid_=d.inv_fid AND b.EARLIEST_FILING_YEAR=d.EARLIEST_FILING_YEAR 
+	INNER JOIN pethprx.t30_inv_name c
+	ON b.inv_fid_=c.inv_fid
+SET b.fcfinv=b.inv_fid_
+WHERE c.celgr_id_max IN (3, 8, 10, 17, 23, 26, 27, 28, 29, 36, 38, 39);
+/*
+Query OK, 8230 rows affected (0,55 sec)
+Rows matched: 8230  Changed: 8230  Warnings: 0
+*/
+UPDATE pethprx.t73_s3c b
+	INNER JOIN pethprx.t55_invyear d
+	ON d.tyr_c>0 AND d.pc_c_10>=0.9 AND b.inv_fid=d.inv_fid AND b.EARLIEST_FILING_YEAR=d.EARLIEST_FILING_YEAR 
+	INNER JOIN pethprx.t30_inv_name c
+	ON b.inv_fid=c.inv_fid
+SET b.fcfinv=b.inv_fid
+WHERE c.celgr_id_max IN (3, 8, 10, 17, 23, 26, 27, 28, 29, 36, 38, 39);
+/*
+Query OK, 12134 rows affected (0,67 sec)
+Rows matched: 12134  Changed: 12134  Warnings: 0
+*/
+
+-- Ethnicity focal node
+UPDATE pethprx.t73_s3c a
+SET a.celgr_id_max_fcfinv=NULL;
+
+UPDATE pethprx.t73_s3c a
+	INNER JOIN pethprx.t30_inv_name b
+	ON a.fcfinv=b.inv_fid
+SET a.celgr_id_max_fcfinv=b.celgr_id_max
+WHERE b.celgr_id_max IN (3, 8, 10, 17, 23, 26, 27, 28, 29, 36, 38, 39);
+/*
+Query OK, 20273 rows affected (0,51 sec)
+Rows matched: 20273  Changed: 20273  Warnings: 0
+*/
+
+
+
+
+SELECT * FROM pethprx.t73_s3c WHERE celgr_id_max_fcfinv IS NULL LIMIT 0,10;
+SELECT linked, COUNT(*) FROM pethprx.t73_s3c WHERE celgr_id_max_fcfinv IS NULL GROUP BY linked; 
+
+WITH t1 AS (
+	SELECT DISTINCT a.inv_fid__ AS inv_fid, c.EARLIEST_FILING_YEAR  
+	FROM pethprx.t63_s3 a
+	INNER JOIN pethprx.t53_sample c
+	ON a.sample_id=c.id
+	UNION
+	SELECT DISTINCT c.inv_fid AS inv_fid, c.EARLIEST_FILING_YEAR FROM pethprx.t63_s3 b
+	INNER JOIN pethprx.t53_sample c
+	ON b.sample_id=c.id
+	UNION
+	SELECT DISTINCT c.inv_fid_ AS inv_fid, c.EARLIEST_FILING_YEAR FROM pethprx.t63_s3 b
+	INNER JOIN pethprx.t53_sample c
+	ON b.sample_id=c.id
+	)
+SELECT DISTINCT b.addr_id, c.loc, c.lat, c.lon 
+	FROM t1 a
+	INNER JOIN pethprx.t55_invyear b
+	ON a.inv_fid=b.inv_fid AND a.EARLIEST_FILING_YEAR=b.EARLIEST_FILING_YEAR
+	INNER JOIN riccaboni2017.t20_addr c
+	ON b.addr_id=c.id 
+INTO OUTFILE '/var/lib/mysql-files/ernest_addr_id_new.csv'
+            FIELDS TERMINATED BY ','
+            ENCLOSED BY '"'
+            LINES TERMINATED BY '\n';
+/*
+Query OK, 22795 rows affected (3,15 sec)
+*/
+
+
+SELECT COUNT(*) FROM pethprx.t73_s3c; 
 SELECT linked, COUNT(*) FROM pethprx.t73_s3c GROUP BY linked; 
+SELECT * FROM pethprx.t73_s3c_sd LIMIT 0,10;
 SELECT * FROM pethprx.t73_s3c LIMIT 0,10;
-
 SHOW INDEX FROM pethprx.t54_invipc;
 
 

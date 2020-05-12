@@ -13,7 +13,7 @@
 #'@examples
 #' 
 #' formula<-"linked ~ ethnic + soc_2 + soc_3 + soc_4 + av_cent + absdif_cent + geodis + insprox + techprox"  
-#' labels_one<-c("Ethnic proximity",
+#' labels_one<-c("Ethnic similarity",
 #'              "Social distance = 2",
 #'              "Social distance = 3",
 #'              "Social distance = 4",
