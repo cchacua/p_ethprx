@@ -1,5 +1,5 @@
 CREATE DATABASE pethprx;
-GRANT ALL PRIVILEGES ON pethprx.* TO 'christian';	
+-- GRANT ALL PRIVILEGES ON pethprx.* TO 'christian';	
 
 ---------------------------------------------------------------------------------------------------
 -- LOAD TABLE WITH POINTS INSIDE THE US
@@ -1606,6 +1606,54 @@ SELECT * FROM pethprx.t62_s2 LIMIT 10;
 SELECT * FROM pethprx.t53_sample LIMIT 10;
 SELECT * FROM pethprx.t10_samples LIMIT 10;
 
+
+-- Insert counterfactual undirected links into t52_eudir to create eudir ids. In principle, all rows from t62_s2 should appear in t52_eudir 
+INSERT INTO pethprx.t52_eudir (inv_fid, inv_fid_, EARLIEST_FILING_YEAR, cntrf)
+WITH t1 AS (
+SELECT DISTINCT LEAST(a.inv_fid, b.inv_fid__) AS inv_fid, GREATEST(a.inv_fid, b.inv_fid__) AS inv_fid_, a.EARLIEST_FILING_YEAR
+FROM pethprx.t53_sample a
+INNER JOIN pethprx.t62_s2 b
+ON a.id=b.sample_id
+)
+SELECT a.inv_fid, a.inv_fid_ , a.EARLIEST_FILING_YEAR, 1
+	FROM t1 a
+	LEFT JOIN pethprx.t52_eudir b
+	ON a.inv_fid=b.inv_fid AND a.inv_fid_=b.inv_fid_ AND a.EARLIEST_FILING_YEAR=b.EARLIEST_FILING_YEAR
+	WHERE b.inv_fid IS NULL OR b.inv_fid_ IS NULL OR b.EARLIEST_FILING_YEAR IS NULL;
+/*
+Query OK, 207496 rows affected (1 min 45.09 sec)
+Records: 207496  Duplicates: 0  Warnings: 0
+*/
+
+ALTER TABLE pethprx.t62_s2 ADD COLUMN eudir_id BIGINT UNSIGNED;
+UPDATE pethprx.t62_s2 x
+	INNER JOIN pethprx.t53_sample a
+	ON x.sample_id=a.id
+	INNER JOIN pethprx.t52_eudir b
+	ON LEAST(a.inv_fid, x.inv_fid__)=b.inv_fid AND GREATEST(a.inv_fid, x.inv_fid__)=b.inv_fid_ AND a.EARLIEST_FILING_YEAR=b.EARLIEST_FILING_YEAR
+	SET x.eudir_id=b.id
+	WHERE b.cntrf=1;
+/*
+Query OK, 207654 rows affected (3 min 41.06 sec)
+Rows matched: 207654  Changed: 207654  Warnings: 0
+*/
+ALTER TABLE pethprx.t62_s2 ADD INDEX(eudir_id);
+
+
+SELECT * FROM pethprx.t62_s2 WHERE eudir_id IS NULL LIMIT 10;
+
+SELECT a.* 
+	FROM pethprx.t62_s2 x
+	INNER JOIN pethprx.t53_sample a
+	ON x.sample_id=a.id
+	WHERE x.eudir_id IS NULL LIMIT 10;
+
+SELECT * FROM pethprx.t62_s2 LIMIT 98, 10;
+SELECT inv_fid__, COUNT(*) FROM pethprx.t62_s2 GROUP BY inv_fid__ ORDER BY COUNT(*) DESC LIMIT 10;
+
+
+
+
 --------------------------
 -- t63_s3 Sample 3
 /*
@@ -1872,7 +1920,7 @@ SELECT * FROM pethprx.t63_s3 LIMIT 98, 10;
 SELECT inv_fid__, COUNT(*) FROM pethprx.t63_s3 GROUP BY inv_fid__ ORDER BY COUNT(*) DESC LIMIT 10;
 
 --------------------------
--- t73_s3c Sample 3 ready to run regressions 
+-- t73_s3c Sample 3 CTT, ready to run regressions 
 /*
 Attention: Here the relevant variable is collaborations
 */

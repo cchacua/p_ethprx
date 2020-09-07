@@ -128,6 +128,104 @@ sum(inventors2$PBOC)
 
 stargazer::stargazer(inventors2, summary=FALSE, rownames=FALSE, digits=2)
 
+# Hispanic inventors
+inventors<-dbGetQuery(christian2019,
+    "SELECT d.celgr_text AS 'CEL Group', 
+    COUNT(DISTINCT (CASE WHEN b.field IN ('i', 'c') THEN c.inv_fid END)) AS CTT,
+    COUNT(DISTINCT (CASE WHEN b.field IN ('i', 'p') THEN c.inv_fid END)) AS PBOC
+    FROM pethprx.t51_edir a
+    INNER JOIN pethprx.t01_samples b
+    ON b.inv_all_us=1 AND b.eth_comp=1  AND a.pat_id=b.pat_id
+    INNER JOIN pethprx.t30_inv_name c
+    ON a.inv_fid=c.inv_fid
+    INNER JOIN pethprx.t39_celgr d
+    ON c.celgr_id_max=d.id
+    WHERE c.celgr_id_max IN (30, 33, 22) AND (c.pat_np>1 OR c.pat_nc>1)
+    GROUP BY c.celgr_id_max;")
+
+#   +----------------------+------+------+
+#   | CEL Group            | CTT  | PBOC |
+#   +----------------------+------+------+
+#   | Hispanic.Portuguese  | 2188 | 2174 |
+#   | Hispanic.Spanish     | 5077 | 5081 |
+#   | Hispanic.Philippines | 2523 | 2208 |
+#   +----------------------+------+------+
+#   3 rows in set (5 min 4.69 sec)
+#  81,146 and 68,236 
+# 5077/81146 5081/68236 
+
+
+
+# Example names for the slides
+example_names<-dbGetQuery(christian2019,
+"SELECT COALESCE(eudir_id_cc, eudir_id) AS nid, a.linked, UPPER(b.fname) AS name_i, UPPER(c.fname) AS name_j, a.ethnic, EARLIEST_FILING_YEAR AS year
+  FROM pethprx.t72_s2p a 
+  INNER JOIN pethprx.t30_inv_name b
+  ON a.inv_fid=b.inv_fid
+  INNER JOIN pethprx.t30_inv_name c
+  ON a.inv_fid_=c.inv_fid
+  WHERE c.celgr_id_max IN (3, 8, 10, 17, 23, 26, 27, 28, 29, 36, 38, 39) AND c.prob_max>0.9
+  ORDER BY nid, a.linked DESC
+  LIMIT 100;
+")
+
+example_names<-dbGetQuery(christian2019,
+"SELECT COALESCE(eudir_id_cc, eudir_id) AS nid, a.linked, UPPER(b.fname) AS name_i, UPPER(c.fname) AS name_j, a.ethnic, bb.label, cc.label
+  FROM pethprx.t72_s2p a 
+  INNER JOIN pethprx.t30_inv_name b
+  ON a.inv_fid=b.inv_fid
+  INNER JOIN pethprx.t39_celgr bb
+  ON b.celgr_id_max=bb.id
+  INNER JOIN pethprx.t30_inv_name c
+  ON a.inv_fid_=c.inv_fid
+  INNER JOIN pethprx.t39_celgr cc
+  ON c.celgr_id_max=cc.id
+  ORDER BY nid, a.linked DESC
+  LIMIT 100;
+")
+
+"
+SELECT COALESCE(eudir_id_cc, eudir_id) AS nid, a.linked, UPPER(b.fname) AS name_i, UPPER(c.fname) AS name_j, a.ethnic, EARLIEST_FILING_YEAR AS year
+FROM pethprx.t72_s2p a 
+INNER JOIN pethprx.t30_inv_name b
+ON a.inv_fid=b.inv_fid
+INNER JOIN pethprx.t30_inv_name c
+ON a.inv_fid_=c.inv_fid
+WHERE COALESCE(eudir_id_cc, eudir_id)=1211031
+ORDER BY nid, a.linked DESC
+LIMIT 100;
+
+SELECT a.linked, UPPER(b.fname) AS name_i, UPPER(c.fname) AS name_j, bb.label, cc.label, a.ethnic, bb.celgr_text, cc.celgr_text
+FROM pethprx.t72_s2p a 
+INNER JOIN pethprx.t30_inv_name b
+ON a.inv_fid=b.inv_fid
+INNER JOIN pethprx.t39_celgr bb
+ON b.celgr_id_max=bb.id
+INNER JOIN pethprx.t30_inv_name c
+ON a.inv_fid_=c.inv_fid
+INNER JOIN pethprx.t39_celgr cc
+ON c.celgr_id_max=cc.id
+WHERE COALESCE(eudir_id_cc, eudir_id)=98399
+ORDER BY  a.linked DESC
+LIMIT 100;
+
+
+SELECT a.linked, UPPER(b.fname) AS name_i, UPPER(c.fname) AS name_j, bb.label, cc.label, a.ethnic, bb.celgr_text, cc.celgr_text
+FROM pethprx.t72_s2p a 
+INNER JOIN pethprx.t30_inv_name b
+ON a.inv_fid=b.inv_fid
+INNER JOIN pethprx.t39_celgr bb
+ON b.celgr_id_max=bb.id
+INNER JOIN pethprx.t30_inv_name c
+ON a.inv_fid_=c.inv_fid
+INNER JOIN pethprx.t39_celgr cc
+ON c.celgr_id_max=cc.id
+WHERE COALESCE(eudir_id_cc, eudir_id)=5134
+ORDER BY  a.linked DESC
+LIMIT 100;
+"
+
+
 
 
 s3<-dbGetQuery(christian2019,
