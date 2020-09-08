@@ -1,3 +1,9 @@
+SHOW VARIABLES LIKE "local_infile";
+SET GLOBAL local_infile = 'ON';
+SET UNIQUE_CHECKS = 0;
+SET FOREIGN_KEY_CHECKS = 0;
+SET SQL_LOG_BIN=0;
+
 --------------------------
 -- t72_s2p Sample 2, PBOC ready to run regressions 
 /*
@@ -265,13 +271,9 @@ inv_fid_ BIGINT UNSIGNED,
 socialdist INT,
 EARLIEST_FILING_YEAR INT
 ) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
-ALTER TABLE pethprx.t72_s2p_sd ADD INDEX(inv_fid);
-ALTER TABLE pethprx.t72_s2p_sd ADD INDEX(inv_fid_);
-ALTER TABLE pethprx.t72_s2p_sd ADD INDEX(EARLIEST_FILING_YEAR);
 
 
-
-LOAD DATA LOCAL INFILE '/mnt/hdd2/repositories/christian/p_ethprx/output/graphs/distance_list/p_.csv' INTO TABLE pethprx.t72_s2p_sd
+LOAD DATA LOCAL INFILE '/var/lib/mysql-files/output/graphs/distance_list/t72_s2p/*.csv' INTO TABLE pethprx.t72_s2p_sd
 FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"'  ESCAPED BY ''
 lines terminated by '\n'
 IGNORE 1 LINES ;
@@ -279,6 +281,12 @@ SHOW WARNINGS;
 /*
 
 */
+ALTER TABLE pethprx.t72_s2p_sd ADD INDEX(inv_fid);
+ALTER TABLE pethprx.t72_s2p_sd ADD INDEX(inv_fid_);
+ALTER TABLE pethprx.t72_s2p_sd ADD INDEX(EARLIEST_FILING_YEAR);
+
+
+
 
 SELECT * FROM pethprx.t72_s2p_sd LIMIT 0,10;
 

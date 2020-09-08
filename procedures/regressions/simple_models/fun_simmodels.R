@@ -40,12 +40,12 @@ simmodels<-function(sformula,
   
   flist<-list.files(path=fpath, full.names=TRUE)
   if(includenas==TRUE){
-    database_ctt<-data.table::as.data.table(read.csv(flist[2]))
-    database_pboc<-data.table::as.data.table(read.csv(flist[4]))
+    database_ctt<-data.table::as.data.table(read.csv(flist[1]))
+    database_pboc<-data.table::as.data.table(read.csv(flist[2]))
   }
   else{
-    database_ctt<-data.table::as.data.table(read.csv(flist[1]))
-    database_pboc<-data.table::as.data.table(read.csv(flist[3]))
+    database_ctt<-data.table::as.data.table(read.csv(flist[3]))
+    database_pboc<-data.table::as.data.table(read.csv(flist[4]))
   }
   
   database_ctt$geodis<-as.numeric(database_ctt$geodis/10000)
