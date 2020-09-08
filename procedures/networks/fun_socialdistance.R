@@ -5,6 +5,7 @@
 #'@param endyear Numeric. The year t
 #'@param withplot Boolean. Should we plot the network. Default is False
 #'@param sector String. It can be c for CTT or p for PBOC field
+#'@param sample String. Prefix of the table name. Default is t73_s3
 #'@return It saves some output files
 #'@examples
 #' 
@@ -13,7 +14,7 @@
 #'
 
 
-ugraphinv_dis_bulk<-function(endyear, withplot=FALSE, sector="c"){
+ugraphinv_dis_bulk<-function(endyear, withplot=FALSE, sector="c", sample="t73_s3"){
   print("Sector should be pboc or ctt")
   inityear<-endyear-4
   linkyear<-endyear+1
@@ -28,14 +29,14 @@ ugraphinv_dis_bulk<-function(endyear, withplot=FALSE, sector="c"){
     ;")))
   
   dedges<-as.data.table(dbGetQuery(christian2019, paste0("SELECT DISTINCT CAST(inv_fid AS CHAR) AS finalID_,  CAST(inv_fid_ AS CHAR) AS finalID__, id AS undid
-                                                         FROM pethprx.t73_s3", sector, 
+                                                         FROM pethprx.", sample, sector, 
                                                          " WHERE EARLIEST_FILING_YEAR=",linkyear)))
   print("Data has been loaded")
   print(paste("Number of total edges",nrow(uedges)))
   print(paste("Number of edges to find",nrow(dedges), nrow(dedges)/nrow(uedges)))
   graph<-graph_from_data_frame(uedges, directed = FALSE)
   #rm(uedges)
-  #save(graph, file=paste0("../output/graphs/networks/",sector, "_", inityear,"-",endyear, "_network", ".RData"))
+  #save(graph, file=paste0("/home/rstudio/output/graphs/networks/",sample,sector, "_", inityear,"-",endyear, "_network", ".RData"))
   print("Graph has been done")
   
   nodesdegree<-unique(rbind(data.frame(v1=dedges$finalID_),data.frame(v1=dedges$finalID__)))
@@ -46,7 +47,7 @@ ugraphinv_dis_bulk<-function(endyear, withplot=FALSE, sector="c"){
   vdegree$finalID<-rownames(vdegree)
   vdegree$lyear<-linkyear
   vdegree$yfinalID<-paste0(linkyear,vdegree$finalID)
-  # fwrite(vdegree, paste0("../output/graphs/degree/d",sector, "_", inityear,"-",endyear, "_list", ".csv"))
+  # fwrite(vdegree, paste0("/home/rstudio/output/graphs/degree/d",sample,sector, "_", inityear,"-",endyear, "_list", ".csv"))
   vdegree<-as.data.table(vdegree)
   
   setkey(dedges,finalID_)
@@ -64,12 +65,12 @@ ugraphinv_dis_bulk<-function(endyear, withplot=FALSE, sector="c"){
   dline$year<-linkyear
   print("Distances have been computed")
   gc()
-  fwrite(dline, paste0("../output/graphs/distance_list/",sector, "_", inityear,"-",endyear, "_list", ".csv"))
+  fwrite(dline, paste0("/home/rstudio/output/graphs/distance_list/",sample,sector, "_", inityear,"-",endyear, "_list", ".csv"))
   
   if(withplot==TRUE){
     graph.l<-layout_with_drl(graph, options=list(simmer.attraction=0))
     print("Layout has been done")
-    pdf(paste0("../output/graphs/images/",inityear,"-",endyear, "_plot", ".pdf"))
+    pdf(paste0("/home/rstudio/output/graphs/images/",inityear,"-",endyear, "_plot", ".pdf"))
     plot(graph, layout=graph.l, vertex.label=NA, vertex.frame.color=NA, vertex.size=0.7, edge.width=0.4)
     dev.off()
     print("Plot has been done")

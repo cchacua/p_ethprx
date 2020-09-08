@@ -1,15 +1,16 @@
-source("~/christian/conf/connection.R")
+source("~/input/conf/connection.R")
 source("./procedures/networks/fun_socialdistance.R")
 library("igraph")
 library("data.table")
 
 
-ugraphinv_dis <-function(endyear, withplot, sector) tryCatch(ugraphinv_dis_bulk(endyear, withplot, sector), error = function(e) NULL)
+ugraphinv_dis <-function(endyear, withplot, sector, sample) tryCatch(ugraphinv_dis_bulk(endyear, withplot, sector, sample), error = function(e) NULL)
 ynumbers<-seq(1975, 2012, 1)
 
-lapply(ynumbers, ugraphinv_dis , sector="c")
-lapply(ynumbers, ugraphinv_dis, sector="p")
-# ugraphinv_dis_bulk(2005, sector="c") 
+lapply(ynumbers, ugraphinv_dis, sector="p", sample="t72_s2")
+lapply(ynumbers, ugraphinv_dis , sector="c", sample="t72_s2")
+
+# ugraphinv_dis_bulk(2005, sector="p", sample="t72_s2") 
 
 
 # Merge multiple files (takes too much ram)
