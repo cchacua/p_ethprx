@@ -80,6 +80,16 @@ inventors<-dbGetQuery(christian2019,
 stargazer::stargazer(inventors, summary=FALSE, rownames=FALSE)
 
 
+inventors<-dbGetQuery(christian2019,
+                      "SELECT 'Total' AS 'CEL Group', 
+                      COUNT(DISTINCT (CASE WHEN b.field IN ('i', 'c', 'p') THEN c.inv_fid END)) AS Inv
+                      FROM pethprx.t51_edir a
+                      INNER JOIN pethprx.t01_samples b
+                      ON b.inv_all_us=1 AND b.eth_comp=1  AND a.pat_id=b.pat_id
+                      INNER JOIN pethprx.t30_inv_name c
+                      ON a.inv_fid=c.inv_fid
+                      WHERE c.pat_np>1 OR c.pat_nc>1;")
+
 #######################################################################################
 # Distribution of 12 ethnic groups by field, more than one patent
 #######################################################################################
