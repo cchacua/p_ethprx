@@ -267,3 +267,14 @@ rm(s3)
 s3p<-dbGetQuery(christian2019,
                "SELECT * FROM pethprx.t73_s3p  ;")
 write.csv(s3p, paste0("../output/s3p.csv"))
+
+
+sample<-dbGetQuery(christian2019,
+                "SELECT * FROM pethprx.t72_s2c  ;")
+write.csv(sample, paste0("~/output/s2c.csv"))
+sample<-dbGetQuery(christian2019,
+                   "SELECT * FROM pethprx.t72_s2p  ;")
+write.csv(sample, paste0("~/output/s2p.csv"))
+rm(sample)
+
+
