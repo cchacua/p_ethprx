@@ -158,3 +158,93 @@ WHERE x.same_appl IS NULL;
 Query OK, 98881 rows affected (9.30 sec)
 Rows matched: 98881  Changed: 98881  Warnings: 0
 */
+
+
+
+
+-- Social distance
+-- https://stackoverflow.com/questions/2370876/find-path-between-nodes-with-sql
+-- https://stackoverflow.com/questions/59506079/mysql-shortest-path-between-two-nodes
+-- https://stackoverflow.com/questions/45933491/path-finding-via-sql-query
+DROP TABLE IF EXISTS pethprx.t72_s2c_sd;
+CREATE TABLE IF NOT EXISTS pethprx.t72_s2c_sd
+(
+inv_fid BIGINT UNSIGNED,
+inv_fid_ BIGINT UNSIGNED,
+socialdist INT,
+EARLIEST_FILING_YEAR INT
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+
+
+
+/*
+LOAD DATA LOCAL INFILE '/var/lib/mysql-files/output/graphs/distance_list/t72_s2c/*.csv' INTO TABLE pethprx.t72_s2c_sd
+FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"'  ESCAPED BY ''
+lines terminated by '\n'
+IGNORE 1 LINES ;
+SHOW WARNINGS;
+*/
+
+ALTER TABLE pethprx.t72_s2c_sd ADD INDEX(inv_fid);
+ALTER TABLE pethprx.t72_s2c_sd ADD INDEX(inv_fid_);
+ALTER TABLE pethprx.t72_s2c_sd ADD INDEX(EARLIEST_FILING_YEAR);
+
+
+
+
+SELECT * FROM pethprx.t72_s2c_sd LIMIT 0,10;
+
+UPDATE pethprx.t72_s2c x
+	INNER JOIN pethprx.t72_s2c_sd y
+	ON x.inv_fid=y.inv_fid AND x.inv_fid_=y.inv_fid_ AND x.EARLIEST_FILING_YEAR=y.EARLIEST_FILING_YEAR
+SET x.socialdist=y.socialdist;
+/*
+Query OK, 26801 rows affected (2 min 41,11 sec)
+Rows matched: 26801  Changed: 26801  Warnings: 0
+*/
+
+UPDATE pethprx.t72_s2c x
+	INNER JOIN pethprx.t72_s2c_sd y
+	ON x.inv_fid=y.inv_fid_ AND x.inv_fid_=y.inv_fid AND x.EARLIEST_FILING_YEAR=y.EARLIEST_FILING_YEAR
+SET x.socialdist=y.socialdist;
+/*
+Query OK, 0 rows affected (1 min 49,56 sec)
+Rows matched: 4325  Changed: 0  Warnings: 0
+*/
+
+UPDATE pethprx.t72_s2c x
+SET x.socialdist=999 WHERE x.socialdist IS NULL;
+/*
+Query OK, 6205 rows affected (0,26 sec)
+Rows matched: 6205  Changed: 6205  Warnings: 0
+*/
+
+ALTER TABLE pethprx.t72_s2c
+	ADD COLUMN soc_2 BOOL,
+	ADD COLUMN soc_3 BOOL,
+	ADD COLUMN soc_4 BOOL,
+	ADD COLUMN soc_5m BOOL;
+
+UPDATE pethprx.t72_s2c x
+SET x.soc_2=1 WHERE x.socialdist=2;
+
+UPDATE pethprx.t72_s2c x
+SET x.soc_3=1 WHERE x.socialdist=3;
+
+UPDATE pethprx.t72_s2c x
+SET x.soc_4=1 WHERE x.socialdist=4;
+
+UPDATE pethprx.t72_s2c x
+SET x.soc_5m=1 WHERE x.socialdist>4;
+
+UPDATE pethprx.t72_s2c x
+SET x.soc_2=0 WHERE x.socialdist!=2;
+
+UPDATE pethprx.t72_s2c x
+SET x.soc_3=0 WHERE x.socialdist!=3;
+
+UPDATE pethprx.t72_s2c x
+SET x.soc_4=0 WHERE x.socialdist!=4;
+
+UPDATE pethprx.t72_s2c x
+SET x.soc_5m=0 WHERE x.socialdist<4;

@@ -14,32 +14,39 @@
 #'
 
 
+# print("Sector should be pboc or ctt")
+# endyear=1990
+# withplot=FALSE
+# sector="c"
+# sample="t73_s3"
+
+
 ugraphinv_dis_bulk<-function(endyear, withplot=FALSE, sector="c", sample="t73_s3"){
-  print("Sector should be pboc or ctt")
+
   inityear<-endyear-4
   linkyear<-endyear+1
   print(paste("Beginning year (t-5):", inityear))
   print(paste("Ending year (t-1):", endyear))
   print(paste("Link year (t0):", linkyear))
-  uedges<-as.data.table(dbGetQuery(christian2019, paste0(
+  edges_net<-as.data.table(dbGetQuery(christian2019, paste0(
     "SELECT DISTINCT CAST(a.inv_fid AS CHAR)  AS finalID_, CAST(a.inv_fid_ AS CHAR) AS finalID__
     FROM pethprx.t51_edir a
     INNER JOIN pethprx.t01_samples b
     ON a.pat_id=b.pat_id AND b.EARLIEST_FILING_YEAR>=",inityear," AND b.EARLIEST_FILING_YEAR<=",endyear," AND b.field IN ('i', '", sector, "')
     ;")))
   
-  dedges<-as.data.table(dbGetQuery(christian2019, paste0("SELECT DISTINCT CAST(inv_fid AS CHAR) AS finalID_,  CAST(inv_fid_ AS CHAR) AS finalID__, id AS undid
+  edges_reg<-as.data.table(dbGetQuery(christian2019, paste0("SELECT DISTINCT CAST(inv_fid AS CHAR) AS finalID_,  CAST(inv_fid_ AS CHAR) AS finalID__, id AS undid
                                                          FROM pethprx.", sample, sector, 
                                                          " WHERE EARLIEST_FILING_YEAR=",linkyear)))
   print("Data has been loaded")
-  print(paste("Number of total edges",nrow(uedges)))
-  print(paste("Number of edges to find",nrow(dedges), nrow(dedges)/nrow(uedges)))
-  graph<-graph_from_data_frame(uedges, directed = FALSE)
-  #rm(uedges)
+  print(paste("Number of total edges",nrow(edges_net)))
+  print(paste("Number of edges to find",nrow(edges_reg), nrow(edges_reg)/nrow(edges_net)))
+  graph<-graph_from_data_frame(edges_net, directed = FALSE)
+  #rm(edges_net)
   #save(graph, file=paste0("/home/rstudio/output/graphs/networks/",sample,sector, "_", inityear,"-",endyear, "_network", ".RData"))
   print("Graph has been done")
   
-  nodesdegree<-unique(rbind(data.frame(v1=dedges$finalID_),data.frame(v1=dedges$finalID__)))
+  nodesdegree<-unique(rbind(data.frame(v1=edges_reg$finalID_),data.frame(v1=edges_reg$finalID__)))
   list.vertex.attributes(graph)
   vdegree<-V(graph)[V(graph)$name %in% nodesdegree$v1]
   vdegree<-degree(graph, v =vdegree)
@@ -50,22 +57,27 @@ ugraphinv_dis_bulk<-function(endyear, withplot=FALSE, sector="c", sample="t73_s3
   # fwrite(vdegree, paste0("/home/rstudio/output/graphs/degree/d",sample,sector, "_", inityear,"-",endyear, "_list", ".csv"))
   vdegree<-as.data.table(vdegree)
   
-  setkey(dedges,finalID_)
+  setkey(edges_reg,finalID_)
   setkey(vdegree,finalID)
-  dedges<-dedges[vdegree, nomatch=0]
+  edges_reg<-edges_reg[vdegree, nomatch=0]
   # Test the other side
-  setkey(dedges,finalID__)
-  dedges<-dedges[vdegree, nomatch=0]
+  setkey(edges_reg,finalID__)
+  edges_reg<-edges_reg[vdegree, nomatch=0]
   
-  vfrom<-V(graph)[V(graph)$name  %in% dedges$finalID_]
-  vto<-V(graph)[V(graph)$name %in% dedges$finalID__]
-  dline<-distances(graph, v=vfrom, to=vto, weights = NULL)
-  dline<-melt(dline)
-  dline<-dline[dline$value!=0 & dline$value!="Inf",]
-  dline$year<-linkyear
+  datalist<-apply(edges_reg, 1, FUN=function(x){
+    x<-as.data.frame(t(x))
+    dline<-distances(graph, v=V(graph)[V(graph)$name  %in% x$finalID_],
+                     to=V(graph)[V(graph)$name %in% x$finalID__], weights = NULL)
+    dline<-melt(dline)
+    dline
+  })
+
+  big_data <- data.table::rbindlist(datalist)
+  big_data<-big_data[big_data$value!=0 & big_data$value!="Inf",]
+  big_data$year<-linkyear
   print("Distances have been computed")
   gc()
-  fwrite(dline, paste0("/home/rstudio/output/graphs/distance_list/",sample,sector, "_", inityear,"-",endyear, "_list", ".csv"))
+  fwrite(big_data, paste0("/home/rstudio/output/graphs/distance_list/",sample,sector, "_", inityear,"-",endyear, "_list", ".csv"))
   
   if(withplot==TRUE){
     graph.l<-layout_with_drl(graph, options=list(simmer.attraction=0))
