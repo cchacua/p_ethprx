@@ -189,9 +189,6 @@ ALTER TABLE pethprx.t72_s2c_sd ADD INDEX(inv_fid);
 ALTER TABLE pethprx.t72_s2c_sd ADD INDEX(inv_fid_);
 ALTER TABLE pethprx.t72_s2c_sd ADD INDEX(EARLIEST_FILING_YEAR);
 
-
-
-
 SELECT * FROM pethprx.t72_s2c_sd LIMIT 0,10;
 
 UPDATE pethprx.t72_s2c x
@@ -199,24 +196,16 @@ UPDATE pethprx.t72_s2c x
 	ON x.inv_fid=y.inv_fid AND x.inv_fid_=y.inv_fid_ AND x.EARLIEST_FILING_YEAR=y.EARLIEST_FILING_YEAR
 SET x.socialdist=y.socialdist;
 /*
-Query OK, 26801 rows affected (2 min 41,11 sec)
-Rows matched: 26801  Changed: 26801  Warnings: 0
+Query OK, 80977 rows affected (5.46 sec)
+Rows matched: 80977  Changed: 80977  Warnings: 0
 */
 
-UPDATE pethprx.t72_s2c x
-	INNER JOIN pethprx.t72_s2c_sd y
-	ON x.inv_fid=y.inv_fid_ AND x.inv_fid_=y.inv_fid AND x.EARLIEST_FILING_YEAR=y.EARLIEST_FILING_YEAR
-SET x.socialdist=y.socialdist;
-/*
-Query OK, 0 rows affected (1 min 49,56 sec)
-Rows matched: 4325  Changed: 0  Warnings: 0
-*/
 
 UPDATE pethprx.t72_s2c x
 SET x.socialdist=999 WHERE x.socialdist IS NULL;
 /*
-Query OK, 6205 rows affected (0,26 sec)
-Rows matched: 6205  Changed: 6205  Warnings: 0
+Query OK, 80011 rows affected (1.78 sec)
+Rows matched: 80011  Changed: 80011  Warnings: 0
 */
 
 ALTER TABLE pethprx.t72_s2c
@@ -226,25 +215,13 @@ ALTER TABLE pethprx.t72_s2c
 	ADD COLUMN soc_5m BOOL;
 
 UPDATE pethprx.t72_s2c x
-SET x.soc_2=1 WHERE x.socialdist=2;
+SET x.soc_2=(CASE WHEN x.socialdist=2 THEN 1 ELSE 0 END),
+    x.soc_3=(CASE WHEN x.socialdist=3 THEN 1 ELSE 0 END),
+    x.soc_4=(CASE WHEN x.socialdist=4 THEN 1 ELSE 0 END),
+    x.soc_5m=(CASE WHEN  x.socialdist>4 THEN 1 ELSE 0 END);
+/*
+Query OK, 160988 rows affected (3.27 sec)
+Rows matched: 160988  Changed: 160988  Warnings: 0
+*/
 
-UPDATE pethprx.t72_s2c x
-SET x.soc_3=1 WHERE x.socialdist=3;
-
-UPDATE pethprx.t72_s2c x
-SET x.soc_4=1 WHERE x.socialdist=4;
-
-UPDATE pethprx.t72_s2c x
-SET x.soc_5m=1 WHERE x.socialdist>4;
-
-UPDATE pethprx.t72_s2c x
-SET x.soc_2=0 WHERE x.socialdist!=2;
-
-UPDATE pethprx.t72_s2c x
-SET x.soc_3=0 WHERE x.socialdist!=3;
-
-UPDATE pethprx.t72_s2c x
-SET x.soc_4=0 WHERE x.socialdist!=4;
-
-UPDATE pethprx.t72_s2c x
-SET x.soc_5m=0 WHERE x.socialdist<4;
+SELECT * FROM pethprx.t72_s2c LIMIT 0,10;

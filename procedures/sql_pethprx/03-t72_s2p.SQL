@@ -295,24 +295,15 @@ UPDATE pethprx.t72_s2p x
 	ON x.inv_fid=y.inv_fid AND x.inv_fid_=y.inv_fid_ AND x.EARLIEST_FILING_YEAR=y.EARLIEST_FILING_YEAR
 SET x.socialdist=y.socialdist;
 /*
-Query OK, 26801 rows affected (2 min 41,11 sec)
-Rows matched: 26801  Changed: 26801  Warnings: 0
-*/
-
-UPDATE pethprx.t72_s2p x
-	INNER JOIN pethprx.t72_s2p_sd y
-	ON x.inv_fid=y.inv_fid_ AND x.inv_fid_=y.inv_fid AND x.EARLIEST_FILING_YEAR=y.EARLIEST_FILING_YEAR
-SET x.socialdist=y.socialdist;
-/*
-Query OK, 0 rows affected (1 min 49,56 sec)
-Rows matched: 4325  Changed: 0  Warnings: 0
+Query OK, 154793 rows affected (8.91 sec)
+Rows matched: 154793  Changed: 154793  Warnings: 0
 */
 
 UPDATE pethprx.t72_s2p x
 SET x.socialdist=999 WHERE x.socialdist IS NULL;
 /*
-Query OK, 6205 rows affected (0,26 sec)
-Rows matched: 6205  Changed: 6205  Warnings: 0
+Query OK, 67232 rows affected (4.28 sec)
+Rows matched: 67232  Changed: 67232  Warnings: 0
 */
 
 ALTER TABLE pethprx.t72_s2p
@@ -322,76 +313,14 @@ ALTER TABLE pethprx.t72_s2p
 	ADD COLUMN soc_5m BOOL;
 
 UPDATE pethprx.t72_s2p x
-SET x.soc_2=1 WHERE x.socialdist=2;
-
-UPDATE pethprx.t72_s2p x
-SET x.soc_3=1 WHERE x.socialdist=3;
-
-UPDATE pethprx.t72_s2p x
-SET x.soc_4=1 WHERE x.socialdist=4;
-
-UPDATE pethprx.t72_s2p x
-SET x.soc_5m=1 WHERE x.socialdist>4;
-
-UPDATE pethprx.t72_s2p x
-SET x.soc_2=0 WHERE x.socialdist!=2;
-
-UPDATE pethprx.t72_s2p x
-SET x.soc_3=0 WHERE x.socialdist!=3;
-
-UPDATE pethprx.t72_s2p x
-SET x.soc_4=0 WHERE x.socialdist!=4;
-
-UPDATE pethprx.t72_s2p x
-SET x.soc_5m=0 WHERE x.socialdist<4;
-
+SET x.soc_2=(CASE WHEN x.socialdist=2 THEN 1 ELSE 0 END),
+    x.soc_3=(CASE WHEN x.socialdist=3 THEN 1 ELSE 0 END),
+    x.soc_4=(CASE WHEN x.socialdist=4 THEN 1 ELSE 0 END),
+    x.soc_5m=(CASE WHEN  x.socialdist>4 THEN 1 ELSE 0 END);
 /*
-mysql> UPDATE pethprx.t72_s2p x
-    -> SET x.soc_2=1 WHERE x.socialdist=2;
-Query OK, 3623 rows affected (0,10 sec)
-Rows matched: 3623  Changed: 3623  Warnings: 0
-
-mysql>
-mysql> UPDATE pethprx.t72_s2p x
-    -> SET x.soc_3=1 WHERE x.socialdist=3;
-Query OK, 1793 rows affected (0,05 sec)
-Rows matched: 1793  Changed: 1793  Warnings: 0
-
-UPDATE pethprx.t72_s2p x
-SET x.soc_4=1 WHERE x.socialdist=4;
-Query OK, 1229 rows affected (0,05 sec)
-Rows matched: 1229  Changed: 1229  Warnings: 0
-
-mysql>
-mysql> UPDATE pethprx.t72_s2p x
-    -> SET x.soc_5m=1 WHERE x.socialdist>4;
-Query OK, 13628 rows affected (0,25 sec)
-Rows matched: 13628  Changed: 13628  Warnings: 0
-
-mysql> UPDATE pethprx.t72_s2p x
-    -> SET x.soc_2=0 WHERE x.socialdist!=2;
-Query OK, 16650 rows affected (0,28 sec)
-Rows matched: 16650  Changed: 16650  Warnings: 0
-
-mysql>
-mysql> UPDATE pethprx.t72_s2p x
-    -> SET x.soc_3=0 WHERE x.socialdist!=3;
-Query OK, 18480 rows affected (0,32 sec)
-Rows matched: 18480  Changed: 18480  Warnings: 0
-
-mysql>
-mysql> UPDATE pethprx.t72_s2p x
-    -> SET x.soc_4=0 WHERE x.socialdist!=4;
-Query OK, 19044 rows affected (0,32 sec)
-Rows matched: 19044  Changed: 19044  Warnings: 0
-
-mysql>
-mysql> UPDATE pethprx.t72_s2p x
-    -> SET x.soc_5m=0 WHERE x.socialdist<4;
-Query OK, 5416 rows affected (0,12 sec)
-Rows matched: 5416  Changed: 5416  Warnings: 0
+Query OK, 222025 rows affected (2.90 sec)
+Rows matched: 222025  Changed: 222025  Warnings: 0
 */
-
 
 
 -- This is to compute the focal inventor, but this only makes sense for s3. Here it is difficult to node which one is the focal node

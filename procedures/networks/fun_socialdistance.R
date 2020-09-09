@@ -64,20 +64,26 @@ ugraphinv_dis_bulk<-function(endyear, withplot=FALSE, sector="c", sample="t73_s3
   setkey(edges_reg,finalID__)
   edges_reg<-edges_reg[vdegree, nomatch=0]
   
-  datalist<-apply(edges_reg, 1, FUN=function(x){
-    x<-as.data.frame(t(x))
-    dline<-distances(graph, v=V(graph)[V(graph)$name  %in% x$finalID_],
-                     to=V(graph)[V(graph)$name %in% x$finalID__], weights = NULL)
-    dline<-melt(dline)
-    dline
-  })
-
-  big_data <- data.table::rbindlist(datalist)
-  big_data<-big_data[big_data$value!=0 & big_data$value!="Inf",]
-  big_data$year<-linkyear
+  
+  vfrom<-V(graph)[V(graph)$name  %in% edges_reg$finalID_]
+  vto<-V(graph)[V(graph)$name %in% edges_reg$finalID__]
+  dline<-distances(graph, v=vfrom, to=vto, weights = NULL)
+  dline<-melt(dline)
+  dline<-dline[dline$value!=0 & dline$value!="Inf",]
+  dline<-as.data.table(dline)
+  dline$id<-paste0(dline$Var1,"_",dline$Var2)
+  edges_reg$id<-paste0(edges_reg$finalID_,"_",edges_reg$finalID__)
+  
+  
+  setkey(edges_reg,id)
+  setkey(dline,id)
+  dline<-dline[edges_reg, nomatch=0]
+  dline<-dline[,1:3]
+  dline$year<-linkyear
   print("Distances have been computed")
+  
   gc()
-  fwrite(big_data, paste0("/home/rstudio/output/graphs/distance_list/",sample,sector, "_", inityear,"-",endyear, "_list", ".csv"))
+  fwrite(dline, paste0("/home/rstudio/output/graphs/distance_list/",sample,sector, "_", inityear,"-",endyear, "_list", ".csv"))
   
   if(withplot==TRUE){
     graph.l<-layout_with_drl(graph, options=list(simmer.attraction=0))
