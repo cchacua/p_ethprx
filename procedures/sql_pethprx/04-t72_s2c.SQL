@@ -225,3 +225,36 @@ Rows matched: 160988  Changed: 160988  Warnings: 0
 */
 
 SELECT * FROM pethprx.t72_s2c LIMIT 0,10;
+
+
+-- This is to compute the focal inventor, only matters for clustered standard errors
+ALTER TABLE pethprx.t72_s2c
+	ADD COLUMN fcfinv BIGINT UNSIGNED,
+	ADD COLUMN celgr_id_max_fcfinv INT UNSIGNED;
+
+
+UPDATE pethprx.t72_s2c a
+SET a.fcfinv=NULL;
+UPDATE pethprx.t72_s2c b
+	INNER JOIN pethprx.t55_invyear d
+	ON d.tyr_c>0 AND b.inv_fid_=d.inv_fid AND b.EARLIEST_FILING_YEAR=d.EARLIEST_FILING_YEAR 
+	INNER JOIN pethprx.t30_inv_name c
+	ON b.inv_fid_=c.inv_fid
+SET b.fcfinv=b.inv_fid_
+WHERE c.celgr_id_max IN (3, 8, 10, 17, 23, 26, 27, 28, 29, 36, 38, 39);
+/*
+Query OK, 105086 rows affected (1 min 8.44 sec)
+Rows matched: 105086  Changed: 105086  Warnings: 0
+*/
+
+UPDATE pethprx.t72_s2c b
+	INNER JOIN pethprx.t55_invyear d
+	ON d.tyr_c>0 AND b.inv_fid=d.inv_fid AND b.EARLIEST_FILING_YEAR=d.EARLIEST_FILING_YEAR 
+	INNER JOIN pethprx.t30_inv_name c
+	ON b.inv_fid=c.inv_fid
+SET b.fcfinv=b.inv_fid
+WHERE c.celgr_id_max IN (3, 8, 10, 17, 23, 26, 27, 28, 29, 36, 38, 39);
+/*
+Query OK, 107681 rows affected (5.74 sec)
+Rows matched: 107681  Changed: 107681  Warnings: 0
+*/

@@ -48,11 +48,14 @@ simmodels<-function(sformula,
     database_pboc<-data.table::as.data.table(read.csv(flist[4]))
   }
   
+  
   database_ctt$geodis<-as.numeric(database_ctt$geodis/10000)
   database_ctt$EARLIEST_FILING_YEAR<-factor(database_ctt$EARLIEST_FILING_YEAR)
+  database_ctt[is.na(database_ctt)] <- 0
   
   database_pboc$geodis<-as.numeric(database_pboc$geodis/10000)
   database_pboc$EARLIEST_FILING_YEAR<-factor(database_pboc$EARLIEST_FILING_YEAR)
+  database_pboc[is.na(database_pboc)] <- 0
   
   sformula_t<-as.formula(paste0(sformula, " + EARLIEST_FILING_YEAR"))
   sformula<-as.formula(sformula)
