@@ -247,6 +247,39 @@ Rows matched: 222025  Changed: 222025  Warnings: 0
 
 
 
+-- This is to compute the focal inventor, only matters for clustered standard errors
+ALTER TABLE pethprx.t72_s2p
+	ADD COLUMN fcfinv BIGINT UNSIGNED,
+	ADD COLUMN celgr_id_max_fcfinv INT UNSIGNED;
+
+
+UPDATE pethprx.t72_s2p a
+SET a.fcfinv=NULL;
+UPDATE pethprx.t72_s2p b
+	INNER JOIN pethprx.t55_invyear d
+	ON d.tyr_p>0 AND b.inv_fid_=d.inv_fid AND b.EARLIEST_FILING_YEAR=d.EARLIEST_FILING_YEAR 
+	INNER JOIN pethprx.t30_inv_name c
+	ON b.inv_fid_=c.inv_fid
+SET b.fcfinv=b.inv_fid_
+WHERE c.celgr_id_max IN (3, 8, 10, 17, 23, 26, 27, 28, 29, 36, 38, 39);
+/*
+Query OK, 148842 rows affected (1 min 28.21 sec)
+Rows matched: 148842  Changed: 148842  Warnings: 0
+*/
+UPDATE pethprx.t72_s2p b
+	INNER JOIN pethprx.t55_invyear d
+	ON d.tyr_p>0 AND b.inv_fid=d.inv_fid AND b.EARLIEST_FILING_YEAR=d.EARLIEST_FILING_YEAR 
+	INNER JOIN pethprx.t30_inv_name c
+	ON b.inv_fid=c.inv_fid
+SET b.fcfinv=b.inv_fid
+WHERE c.celgr_id_max IN (3, 8, 10, 17, 23, 26, 27, 28, 29, 36, 38, 39);
+/*
+Query OK, 148137 rows affected (6.77 sec)
+Rows matched: 148137  Changed: 148137  Warnings: 0
+*/
+
+
+
 
 
 
@@ -334,39 +367,6 @@ Rows matched: 165648  Changed: 165648  Warnings: 0
 
 
 
-
-
-
--- This is to compute the focal inventor, but this only makes sense for s3. Here it is difficult to node which one is the focal node
-ALTER TABLE pethprx.t72_s2p
-	ADD COLUMN fcfinv BIGINT UNSIGNED,
-	ADD COLUMN celgr_id_max_fcfinv INT UNSIGNED;
-
-
-UPDATE pethprx.t72_s2p a
-SET a.fcfinv=NULL;
-UPDATE pethprx.t72_s2p b
-	INNER JOIN pethprx.t55_invyear d
-	ON d.tyr_p>0 AND b.inv_fid_=d.inv_fid AND b.EARLIEST_FILING_YEAR=d.EARLIEST_FILING_YEAR 
-	INNER JOIN pethprx.t30_inv_name c
-	ON b.inv_fid_=c.inv_fid
-SET b.fcfinv=b.inv_fid_
-WHERE c.celgr_id_max IN (3, 8, 10, 17, 23, 26, 27, 28, 29, 36, 38, 39);
-/*
-Query OK, 15521 rows affected (4,02 sec)
-Rows matched: 15521  Changed: 15521  Warnings: 0
-*/
-UPDATE pethprx.t72_s2p b
-	INNER JOIN pethprx.t55_invyear d
-	ON d.tyr_p>0 AND b.inv_fid=d.inv_fid AND b.EARLIEST_FILING_YEAR=d.EARLIEST_FILING_YEAR 
-	INNER JOIN pethprx.t30_inv_name c
-	ON b.inv_fid=c.inv_fid
-SET b.fcfinv=b.inv_fid
-WHERE c.celgr_id_max IN (3, 8, 10, 17, 23, 26, 27, 28, 29, 36, 38, 39);
-/*
-Query OK, 17861 rows affected (2,17 sec)
-Rows matched: 17861  Changed: 17861  Warnings: 0
-*/
 
 -- Ethnicity focal node
 UPDATE pethprx.t72_s2p a
