@@ -60,10 +60,24 @@ UPDATE pethprx.t72_s2p a
 	ON a.inv_fid_=c.inv_fid AND a.EARLIEST_FILING_YEAR=c.EARLIEST_FILING_YEAR
 	INNER JOIN riccaboni2017.t20_addr g
 	ON c.addr_id=g.id
-	SET a.av_cent=((b.dg_c+c.dg_c)/2), a.absdif_cent=ABS(CAST(b.dg_c AS SIGNED)-CAST(c.dg_c AS SIGNED)), a.geodis=ST_Distance(f.geom, g.geom);
+	SET a.av_cent=((b.dg_p+c.dg_p)/2), a.absdif_cent=ABS(CAST(b.dg_p AS SIGNED)-CAST(c.dg_p AS SIGNED)), a.geodis=ST_Distance(f.geom, g.geom);
 /*
 Query OK, 222025 rows affected (2 min 39.01 sec)
 Rows matched: 222025  Changed: 222025  Warnings: 0
+
+UPDATE pethprx.t72_s2p a
+SET a.av_cent=0, a.absdif_cent=0;
+
+UPDATE pethprx.t72_s2p a
+	INNER JOIN pethprx.t55_invyear b
+	ON a.inv_fid=b.inv_fid AND a.EARLIEST_FILING_YEAR=b.EARLIEST_FILING_YEAR
+	INNER JOIN pethprx.t55_invyear c
+	ON a.inv_fid_=c.inv_fid AND a.EARLIEST_FILING_YEAR=c.EARLIEST_FILING_YEAR
+	SET a.av_cent=((b.dg_p+c.dg_p)/2), a.absdif_cent=ABS(CAST(b.dg_p AS SIGNED)-CAST(c.dg_p AS SIGNED));
+
+Query OK, 221953 rows affected (10.57 sec)
+Rows matched: 222025  Changed: 221953  Warnings: 0
+
 */
 
 -- Ethnic
@@ -166,6 +180,70 @@ Rows matched: 150238  Changed: 150238  Warnings: 0
 
 
 
+-- Social distance
+-- https://stackoverflow.com/questions/2370876/find-path-between-nodes-with-sql
+-- https://stackoverflow.com/questions/59506079/mysql-shortest-path-between-two-nodes
+-- https://stackoverflow.com/questions/45933491/path-finding-via-sql-query
+DROP TABLE IF EXISTS pethprx.t72_s2p_sd;
+CREATE TABLE IF NOT EXISTS pethprx.t72_s2p_sd
+(
+inv_fid BIGINT UNSIGNED,
+inv_fid_ BIGINT UNSIGNED,
+socialdist INT,
+EARLIEST_FILING_YEAR INT
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+
+
+LOAD DATA LOCAL INFILE '/var/lib/mysql-files/output/graphs/distance_list/t72_s2p/*.csv' INTO TABLE pethprx.t72_s2p_sd
+FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"'  ESCAPED BY ''
+lines terminated by '\n'
+IGNORE 1 LINES ;
+SHOW WARNINGS;
+/*
+
+*/
+ALTER TABLE pethprx.t72_s2p_sd ADD INDEX(inv_fid);
+ALTER TABLE pethprx.t72_s2p_sd ADD INDEX(inv_fid_);
+ALTER TABLE pethprx.t72_s2p_sd ADD INDEX(EARLIEST_FILING_YEAR);
+
+
+
+
+SELECT * FROM pethprx.t72_s2p_sd LIMIT 0,10;
+
+UPDATE pethprx.t72_s2p x
+	INNER JOIN pethprx.t72_s2p_sd y
+	ON x.inv_fid=y.inv_fid AND x.inv_fid_=y.inv_fid_ AND x.EARLIEST_FILING_YEAR=y.EARLIEST_FILING_YEAR
+SET x.socialdist=y.socialdist;
+/*
+Query OK, 154793 rows affected (8.91 sec)
+Rows matched: 154793  Changed: 154793  Warnings: 0
+*/
+
+UPDATE pethprx.t72_s2p x
+SET x.socialdist=999 WHERE x.socialdist IS NULL;
+/*
+Query OK, 67232 rows affected (4.28 sec)
+Rows matched: 67232  Changed: 67232  Warnings: 0
+*/
+
+ALTER TABLE pethprx.t72_s2p
+	ADD COLUMN soc_2 BOOL,
+	ADD COLUMN soc_3 BOOL,
+	ADD COLUMN soc_4 BOOL,
+	ADD COLUMN soc_5m BOOL;
+
+UPDATE pethprx.t72_s2p x
+SET x.soc_2=(CASE WHEN x.socialdist=2 THEN 1 ELSE 0 END),
+    x.soc_3=(CASE WHEN x.socialdist=3 THEN 1 ELSE 0 END),
+    x.soc_4=(CASE WHEN x.socialdist=4 THEN 1 ELSE 0 END),
+    x.soc_5m=(CASE WHEN  x.socialdist>4 THEN 1 ELSE 0 END);
+/*
+Query OK, 222025 rows affected (2.90 sec)
+Rows matched: 222025  Changed: 222025  Warnings: 0
+*/
+
+
 
 
 
@@ -257,70 +335,6 @@ Rows matched: 165648  Changed: 165648  Warnings: 0
 
 
 
-
-
--- Social distance
--- https://stackoverflow.com/questions/2370876/find-path-between-nodes-with-sql
--- https://stackoverflow.com/questions/59506079/mysql-shortest-path-between-two-nodes
--- https://stackoverflow.com/questions/45933491/path-finding-via-sql-query
-DROP TABLE IF EXISTS pethprx.t72_s2p_sd;
-CREATE TABLE IF NOT EXISTS pethprx.t72_s2p_sd
-(
-inv_fid BIGINT UNSIGNED,
-inv_fid_ BIGINT UNSIGNED,
-socialdist INT,
-EARLIEST_FILING_YEAR INT
-) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
-
-
-LOAD DATA LOCAL INFILE '/var/lib/mysql-files/output/graphs/distance_list/t72_s2p/*.csv' INTO TABLE pethprx.t72_s2p_sd
-FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"'  ESCAPED BY ''
-lines terminated by '\n'
-IGNORE 1 LINES ;
-SHOW WARNINGS;
-/*
-
-*/
-ALTER TABLE pethprx.t72_s2p_sd ADD INDEX(inv_fid);
-ALTER TABLE pethprx.t72_s2p_sd ADD INDEX(inv_fid_);
-ALTER TABLE pethprx.t72_s2p_sd ADD INDEX(EARLIEST_FILING_YEAR);
-
-
-
-
-SELECT * FROM pethprx.t72_s2p_sd LIMIT 0,10;
-
-UPDATE pethprx.t72_s2p x
-	INNER JOIN pethprx.t72_s2p_sd y
-	ON x.inv_fid=y.inv_fid AND x.inv_fid_=y.inv_fid_ AND x.EARLIEST_FILING_YEAR=y.EARLIEST_FILING_YEAR
-SET x.socialdist=y.socialdist;
-/*
-Query OK, 154793 rows affected (8.91 sec)
-Rows matched: 154793  Changed: 154793  Warnings: 0
-*/
-
-UPDATE pethprx.t72_s2p x
-SET x.socialdist=999 WHERE x.socialdist IS NULL;
-/*
-Query OK, 67232 rows affected (4.28 sec)
-Rows matched: 67232  Changed: 67232  Warnings: 0
-*/
-
-ALTER TABLE pethprx.t72_s2p
-	ADD COLUMN soc_2 BOOL,
-	ADD COLUMN soc_3 BOOL,
-	ADD COLUMN soc_4 BOOL,
-	ADD COLUMN soc_5m BOOL;
-
-UPDATE pethprx.t72_s2p x
-SET x.soc_2=(CASE WHEN x.socialdist=2 THEN 1 ELSE 0 END),
-    x.soc_3=(CASE WHEN x.socialdist=3 THEN 1 ELSE 0 END),
-    x.soc_4=(CASE WHEN x.socialdist=4 THEN 1 ELSE 0 END),
-    x.soc_5m=(CASE WHEN  x.socialdist>4 THEN 1 ELSE 0 END);
-/*
-Query OK, 222025 rows affected (2.90 sec)
-Rows matched: 222025  Changed: 222025  Warnings: 0
-*/
 
 
 -- This is to compute the focal inventor, but this only makes sense for s3. Here it is difficult to node which one is the focal node

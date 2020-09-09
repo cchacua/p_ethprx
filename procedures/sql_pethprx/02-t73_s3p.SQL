@@ -55,9 +55,18 @@ UPDATE pethprx.t73_s3p a
 	ON a.inv_fid_=c.inv_fid AND a.EARLIEST_FILING_YEAR=c.EARLIEST_FILING_YEAR
 	INNER JOIN riccaboni2017.t20_addr g
 	ON c.addr_id=g.id
-	SET a.av_cent=((b.dg_c+c.dg_c)/2), a.absdif_cent=ABS(CAST(b.dg_c AS SIGNED)-CAST(c.dg_c AS SIGNED)), a.geodis=ST_Distance(f.geom, g.geom);
+	SET a.av_cent=((b.dg_p+c.dg_p)/2), a.absdif_cent=ABS(CAST(b.dg_p AS SIGNED)-CAST(c.dg_p AS SIGNED)), a.geodis=ST_Distance(f.geom, g.geom);
 /*
-
+UPDATE pethprx.t73_s3p a
+SET a.av_cent=0, a.absdif_cent=0;
+UPDATE pethprx.t73_s3p a
+	INNER JOIN pethprx.t55_invyear b
+	ON a.inv_fid=b.inv_fid AND a.EARLIEST_FILING_YEAR=b.EARLIEST_FILING_YEAR
+	INNER JOIN pethprx.t55_invyear c
+	ON a.inv_fid_=c.inv_fid AND a.EARLIEST_FILING_YEAR=c.EARLIEST_FILING_YEAR
+	SET a.av_cent=((b.dg_p+c.dg_p)/2), a.absdif_cent=ABS(CAST(b.dg_p AS SIGNED)-CAST(c.dg_p AS SIGNED));
+Query OK, 33006 rows affected (2.70 sec)
+Rows matched: 33006  Changed: 33006  Warnings: 0
 */
 
 -- Ethnic
