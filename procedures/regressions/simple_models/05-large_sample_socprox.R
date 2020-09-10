@@ -3,7 +3,7 @@
 ################################################################################
 
 formula<-"linked ~ ethnic + (1/socialdist) + av_cent + absdif_cent + geodis"  
-labels<-c("Ethnic proximity",
+labels<-c("Ethnic similarity",
               "Social proximity",
               "Average centrality",
               "Abs. diff. centrality",

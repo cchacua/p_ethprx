@@ -28,7 +28,7 @@ lpmshort<-simmodels(sformula=formula, labels_cov=labels, includenas=TRUE, logit=
 ################################################################################
 
 formula<-"linked ~ ethnic + soc_2 + soc_3 + soc_4 + av_cent + absdif_cent + geodis  + techprox + same_appl +  (ethnic*soc_2) + (ethnic*soc_3) + (ethnic*soc_4) "  
-labels<-c("Ethnic proximity",
+labels<-c("Ethnic similarity",
           "Social distance = 2",
           "Social distance = 3",
           "Social distance = 4",
@@ -49,7 +49,7 @@ lpmlarge<-simmodels(sformula=formula, labels_cov=labels, includenas=TRUE, logit=
 ################################################################################
 
 formula<-"linked ~ ethnic + soc_2 + soc_3 + soc_4 + av_cent + absdif_cent + geodis + techprox + same_appl + (ethnic*geodis)"  
-labels<-c("Ethnic proximity",
+labels<-c("Ethnic similarity",
           "Social distance = 2",
           "Social distance = 3",
           "Social distance = 4",
@@ -68,7 +68,7 @@ lpmlarge<-simmodels(sformula=formula, labels_cov=labels, includenas=TRUE, logit=
 ################################################################################
 
 formula<-"linked ~ ethnic + soc_2 + soc_3 + soc_4 + av_cent + absdif_cent + geodis + techprox + same_appl + (ethnic*same_appl)"  
-labels<-c("Ethnic proximity",
+labels<-c("Ethnic similarity",
           "Social distance = 2",
           "Social distance = 3",
           "Social distance = 4",
