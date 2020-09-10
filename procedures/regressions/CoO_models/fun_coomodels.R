@@ -29,18 +29,18 @@ coomodels<-function(sformula,
     flist<-list.files(path=fpath, full.names=TRUE)
     if(includenas==TRUE){
       if(ctt==TRUE){
-        database<-as.data.table(read.csv(flist[2]))
+        database<-as.data.table(read.csv(flist[1]))
       }
       else{
-        database<-as.data.table(read.csv(flist[4]))
+        database<-as.data.table(read.csv(flist[2]))
       }
     }
     else{
       if(ctt==TRUE){
-        database<-as.data.table(read.csv(flist[1]))
+        database<-as.data.table(read.csv(flist[3]))
       }
       else{
-        database<-as.data.table(read.csv(flist[3]))
+        database<-as.data.table(read.csv(flist[4]))
       }
     }
     

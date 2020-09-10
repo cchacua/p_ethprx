@@ -17,18 +17,18 @@ predictprobgeo_plot<-function(sformula,
   flist<-list.files(path=fpath, full.names=TRUE)
   if(includenas==TRUE){
     if(type=="ctt"){
-      database<-data.table::as.data.table(read.csv(flist[2]))
+      database<-data.table::as.data.table(read.csv(flist[1]))
     }
     if(type=="pboc"){
-      database<-data.table::as.data.table(read.csv(flist[4]))
+      database<-data.table::as.data.table(read.csv(flist[2]))
     }
   }
   else{
     if(type=="ctt"){
-      database<-data.table::as.data.table(read.csv(flist[1]))
+      database<-data.table::as.data.table(read.csv(flist[3]))
     }
     if(type=="pboc"){
-      database<-data.table::as.data.table(read.csv(flist[3]))
+      database<-data.table::as.data.table(read.csv(flist[4]))
     }
   }
   
